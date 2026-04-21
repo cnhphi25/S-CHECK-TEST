@@ -1442,7 +1442,7 @@ async function exportToExcel() {
         return showToast("Vui lòng kích hoạt hoặc chọn một sự kiện!", "error");
     }
 
-    showToast("Đang tạo file báo cáo chuyên nghiệp...", "info");
+    showToast("Đang tạo file báo cáo Times New Roman...", "info");
 
     try {
         const snapshot = await rdb.ref('dynamic_attendance/logs/' + currentSession.code).once('value');
@@ -1451,39 +1451,36 @@ async function exportToExcel() {
         const data = snapshot.val();
         const logsArray = Object.values(data);
         const fields = currentSession.fields;
-        const totalCols = fields.length + 2; // STT + Thời gian + Các field động
+        const totalCols = fields.length + 2; 
 
-        // 1. Khởi tạo Workbook và Worksheet
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet('BangDiem');
 
-        // 2. TẠO TIÊU ĐỀ LỚN (Dòng 1)
+        // 1. TIÊU ĐỀ CHÍNH (Dòng 1)
         worksheet.mergeCells(1, 1, 1, totalCols);
         const mainTitle = worksheet.getCell(1, 1);
         mainTitle.value = "HỆ THỐNG ĐIỂM DANH TỰ ĐỘNG";
-        mainTitle.font = { name: 'Calibri', size: 20, bold: true };
+        mainTitle.font = { name: 'Times New Roman', size: 18, bold: true }; // Ép Times New Roman
         mainTitle.alignment = { vertical: 'middle', horizontal: 'center' };
 
-        // 3. TÊN SỰ KIỆN (Dòng 2)
+        // 2. TÊN SỰ KIỆN (Dòng 2)
         worksheet.mergeCells(2, 1, 2, totalCols);
         const eventTitle = worksheet.getCell(2, 1);
         eventTitle.value = currentSession.title.toUpperCase();
-        eventTitle.font = { name: 'Calibri', size: 14, bold: true };
+        eventTitle.font = { name: 'Times New Roman', size: 13, bold: true }; // Ép Times New Roman
         eventTitle.alignment = { vertical: 'middle', horizontal: 'center' };
 
-        // 4. ĐỊNH DẠNG HEADER BẢNG (Dòng 3)
+        // 3. HEADER BẢNG (Dòng 3)
         const headerRow = worksheet.getRow(3);
-        const headers = ["STT", "Dấu thời gian", ...fields];
-        headerRow.values = headers;
+        headerRow.values = ["STT", "Dấu thời gian", ...fields];
         
-        // Style cho Header (Màu xanh đậm, chữ trắng, căn giữa)
         headerRow.eachCell((cell) => {
             cell.fill = {
                 type: 'pattern',
                 pattern: 'solid',
-                fgColor: { argb: 'FF3F51B5' } // Màu xanh Indigo
+                fgColor: { argb: 'FF3F51B5' }
             };
-            cell.font = { color: { argb: 'FFFFFFFF' }, bold: true };
+            cell.font = { name: 'Times New Roman', color: { argb: 'FFFFFFFF' }, bold: true, size: 11 }; // Ép Times New Roman
             cell.alignment = { vertical: 'middle', horizontal: 'center' };
             cell.border = {
                 top: { style: 'thin' }, left: { style: 'thin' },
@@ -1491,49 +1488,47 @@ async function exportToExcel() {
             };
         });
 
-        // 5. ĐỔ DỮ LIỆU VÀO BẢNG
+        // 4. DỮ LIỆU BẢNG (Dòng 4 trở đi)
         logsArray.forEach((log, index) => {
             const rowData = [index + 1, log.time, ...log.values];
             const row = worksheet.addRow(rowData);
             
-            // Định dạng từng ô trong dòng dữ liệu (Căn giữa + Kẻ khung)
             row.eachCell((cell) => {
+                cell.font = { name: 'Times New Roman', size: 11 }; // Ép Times New Roman cho dữ liệu
                 cell.alignment = { vertical: 'middle', horizontal: 'center' };
                 cell.border = {
                     top: { style: 'thin' }, left: { style: 'thin' },
                     bottom: { style: 'thin' }, right: { style: 'thin' }
                 };
-                // Nếu là cột Số câu đúng (ví dụ giả định field cuối là điểm số) có thể tô màu đỏ nếu cần
-                // cell.font = { color: { argb: 'FFFF0000' } }; 
             });
         });
 
-        // 6. THÊM BỘ LỌC (Auto Filter)
+        // 5. BỘ LỌC (Auto Filter)
         worksheet.autoFilter = {
             from: { row: 3, column: 1 },
             to: { row: 3, column: totalCols }
         };
 
-        // 7. THÊM FOOTER (Báo cáo được xuất từ...)
+        // 6. FOOTER (Ghi chú cuối trang)
         const footerRowNumber = logsArray.length + 5;
         worksheet.mergeCells(footerRowNumber, 1, footerRowNumber, totalCols);
         const footerCell = worksheet.getCell(footerRowNumber, 1);
         footerCell.value = `Báo cáo được xuất từ hệ thống S-CHECK Pro vào lúc ${new Date().toLocaleString('vi-VN')}`;
-        footerCell.font = { italic: true, size: 10, color: { argb: 'FF7F7F7F' } };
+        footerCell.font = { name: 'Times New Roman', italic: true, size: 10, color: { argb: 'FF7F7F7F' } }; // Ép Times New Roman
         footerCell.alignment = { horizontal: 'right' };
 
-        // 8. TỰ ĐỘNG CHỈNH ĐỘ RỘNG CỘT
+        // Tự chỉnh độ rộng cột
         worksheet.columns.forEach(column => {
-            column.width = 25;
+            column.width = 22;
         });
-        worksheet.getColumn(1).width = 8; // Cột STT nhỏ lại
+        worksheet.getColumn(1).width = 8; 
 
-        // 9. XUẤT FILE
+        // XUẤT FILE
         const buffer = await workbook.xlsx.writeBuffer();
         const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
         saveAs(blob, `BaoCao_${createSlug(currentSession.title)}.xlsx`);
 
-        showToast("Xuất file thành công!", "success");
+        showToast("Đã xuất file phông Times New Roman!", "success");
 
     } catch (e) {
         console.error(e);
