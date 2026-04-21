@@ -529,9 +529,15 @@ table th:first-child, table td:first-child {
 
             <!-- THÊM ĐOẠN NÀY VÀO NGAY DƯỚI -->
             <div id="radius-setting" class="flex items-center justify-between mt-2 opacity-50 transition-opacity">
-                <span class="text-[9px] font-bold text-slate-500 uppercase">Bán kính cho phép (mét):</span>
-                <input type="number" id="a-location-radius" value="50" oninput="updateGpsHint()" min="5" max="5000" 
-                    class="w-20 p-1 text-center rounded-lg bg-white/5 border border-white/10 text-[10px] font-bold text-indigo-400 focus:border-indigo-500 outline-none">
+                <span class="text-[9px] font-bold text-slate-500 uppercase">Bán kính (m):</span>
+                <div class="flex gap-1">
+                    <input type="number" id="a-location-radius" value="50" oninput="updateGpsHint()" min="5" max="5000" 
+                        class="w-16 p-1 text-center rounded-lg bg-white/5 border border-white/10 text-[10px] font-bold text-indigo-400 focus:border-indigo-500 outline-none">
+                    <!-- NÚT LƯU MỚI -->
+                    <button onclick="updateLiveSettings()" class="bg-indigo-600/20 hover:bg-indigo-600 text-indigo-400 hover:text-white text-[8px] px-2 py-1 rounded-lg font-black transition-all border border-indigo-500/30">
+                        LƯU
+                    </button>
+                </div>
             </div>
             <p id="gps-hint" class="text-[9px] text-slate-500 italic">- Chỉ cho phép điểm danh khi ở gần bạn (50m) -</p>
         </div>
@@ -1881,6 +1887,65 @@ function toggleMute() {
         statusText.classList.replace('text-slate-500', 'text-emerald-400');
         indicator.classList.remove('hidden'); // Hiện lại chấm đỏ
         showToast("Đã kích hoạt âm thanh & thông báo điểm danh", "success");
+    }
+}
+
+async function updateLiveSettings() {
+    if (!currentSession || !currentSession.code) {
+        return showToast("Cần 'Kích hoạt' sự kiện trước khi lưu cài đặt!", "error");
+    }
+
+    const isRequired = document.getElementById('a-require-location').checked;
+    const radius = Number(document.getElementById('a-location-radius').value) || 50;
+
+    try {
+        // Nếu bật GPS mà chưa có tọa độ Admin (do lúc nãy kích hoạt mà tắt GPS)
+        // Thì cần lấy tọa độ ngay bây giờ
+        let updateData = {
+            requireLocation: isRequired,
+            locationRadius: radius
+        };
+
+        if (isRequired && !currentSession.adminLocation) {
+            showToast("Đang lấy tọa độ gốc của bạn...", "info");
+            const pos = await new Promise((res, rej) => 
+                navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: true })
+            );
+            updateData.adminLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+            currentSession.adminLocation = updateData.adminLocation;
+        }
+
+        // Cập nhật lên Firebase (Chỉ cập nhật trường, không thay đổi Code/QR)
+        await rdb.ref('dynamic_attendance/sessions/' + currentSession.code).update(updateData);
+
+        // Cập nhật biến local để đồng bộ logic tại chỗ
+        currentSession.requireLocation = isRequired;
+        currentSession.locationRadius = radius;
+
+        showToast("Đã lưu cài đặt GPS vào mã QR hiện tại!", "success");
+        updateGpsHint();
+    } catch (e) {
+        showToast("Lỗi: " + e.message, "error");
+    }
+}
+
+// Cập nhật lại hàm Toggle để nó tự động gọi Lưu luôn nếu muốn (Tùy chọn)
+function notifyLocationToggle() {
+    const toggle = document.getElementById('a-require-location');
+    const radiusSetting = document.getElementById('radius-setting');
+    const hint = document.getElementById('gps-hint');
+    const radius = document.getElementById('a-location-radius').value || 50;
+
+    if (toggle.checked) {
+        radiusSetting.style.opacity = "1";
+        hint.classList.replace('text-slate-500', 'text-emerald-400');
+        hint.innerText = `- Bảo mật: Chỉ điểm danh trong ${radius}m -`;
+        showToast("Đã bật yêu cầu vị trí (Nhớ bấm LƯU)", "info");
+    } else {
+        radiusSetting.style.opacity = "0.5";
+        hint.classList.replace('text-emerald-400', 'text-slate-500');
+        hint.innerText = "- Tự do: Có thể điểm danh từ bất cứ đâu -";
+        showToast("Đã tắt yêu cầu vị trí (Nhớ bấm LƯU)", "info");
     }
 }
 
