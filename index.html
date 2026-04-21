@@ -1375,16 +1375,19 @@ function renderHistoryItems(items) {
             <div class="flex justify-between items-start">
                 <div class="space-y-1">
                     <h4 class="font-black text-sm text-white uppercase group-hover:text-indigo-400 transition-colors">${item.title}</h4>
-
                     <p class="text-[9px] text-slate-600">${new Date(item.ts).toLocaleString('vi-VN')}</p>
                 </div>
                 <div class="flex gap-2">
-                    <!-- Nút mở Sheet -->
-                    <a href="${item.sheetUrl}" target="_blank" class="p-2 bg-emerald-500/10 text-emerald-500 rounded-lg hover:bg-emerald-500 hover:text-white transition-all shadow-sm" title="Mở Google Sheet">
-                        <i class="fa-solid fa-table"></i>
-                    </a>
-                    <!-- Nút khôi phục để xem báo cáo ngay trên Web -->
-                    <button onclick="restoreSession('${item.code}')" class="p-2 bg-indigo-500/10 text-indigo-500 rounded-lg hover:bg-indigo-500 hover:text-white transition-all shadow-sm" title="Xem báo cáo trên web">
+                    <!-- NÚT XUẤT EXCEL MỚI (THAY CHO NÚT MỞ SHEET) -->
+                    <button onclick="exportSpecificSession('${item.code}')" 
+                            class="p-2 bg-emerald-500/10 text-emerald-500 rounded-lg hover:bg-emerald-500 hover:text-white transition-all shadow-sm" 
+                            title="Xuất file Excel">
+                        <i class="fa-solid fa-file-excel"></i>
+                    </button>
+                    <!-- Nút khôi phục xem báo cáo trên web -->
+                    <button onclick="restoreSession('${item.code}')" 
+                            class="p-2 bg-indigo-500/10 text-indigo-500 rounded-lg hover:bg-indigo-500 hover:text-white transition-all shadow-sm" 
+                            title="Xem báo cáo trên web">
                         <i class="fa-solid fa-chart-column"></i>
                     </button>
                 </div>
@@ -1546,6 +1549,85 @@ async function exportToExcel() {
     } catch (e) {
         console.error(e);
         showToast("Lỗi khi tạo file Excel!", "error");
+    }
+}
+
+// Hàm này cho phép xuất Excel bất kỳ phiên nào trong lịch sử
+async function exportSpecificSession(code) {
+    showToast("Đang tải dữ liệu lịch sử...", "info");
+    
+    try {
+        // 1. Lấy thông tin cấu hình sự kiện (title, fields)
+        const sessionSnap = await rdb.ref('dynamic_attendance/sessions/' + code).once('value');
+        if (!sessionSnap.exists()) return showToast("Không tìm thấy sự kiện!", "error");
+        const session = sessionSnap.val();
+
+        // 2. Lấy danh sách điểm danh
+        const logsSnap = await rdb.ref('dynamic_attendance/logs/' + code).once('value');
+        if (!logsSnap.exists()) return showToast("Sự kiện này chưa có người điểm danh!", "info");
+        
+        const logsArray = Object.values(logsSnap.val());
+        const totalCols = session.fields.length + 2;
+
+        // 3. Tiến hành tạo file Excel (Giống logic exportToExcel)
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('BangDiem');
+        worksheet.views = [{ state: 'frozen', xSplit: 1, ySplit: 3 }];
+
+        // Header Tiêu đề
+        worksheet.mergeCells(1, 1, 1, totalCols);
+        const mainTitle = worksheet.getCell(1, 1);
+        mainTitle.value = "HỆ THỐNG ĐIỂM DANH TỰ ĐỘNG";
+        mainTitle.font = { name: 'Times New Roman', size: 18, bold: true };
+        mainTitle.alignment = { vertical: 'middle', horizontal: 'center' };
+
+        worksheet.mergeCells(2, 1, 2, totalCols);
+        const eventTitle = worksheet.getCell(2, 1);
+        eventTitle.value = session.title.toUpperCase();
+        eventTitle.font = { name: 'Times New Roman', size: 13, bold: true };
+        eventTitle.alignment = { vertical: 'middle', horizontal: 'center' };
+
+        // Header Bảng
+        const headerRow = worksheet.getRow(3);
+        headerRow.values = ["STT", "Dấu thời gian", ...session.fields];
+        headerRow.eachCell((cell) => {
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF3F51B5' } };
+            cell.font = { name: 'Times New Roman', color: { argb: 'FFFFFFFF' }, bold: true, size: 11 };
+            cell.alignment = { vertical: 'middle', horizontal: 'center' };
+            cell.border = { top:{style:'thin'}, left:{style:'thin'}, bottom:{style:'thin'}, right:{style:'thin'} };
+        });
+
+        // Dữ liệu
+        logsArray.forEach((log, index) => {
+            const row = worksheet.addRow([index + 1, log.time, ...log.values]);
+            row.eachCell((cell) => {
+                cell.font = { name: 'Times New Roman', size: 11 };
+                cell.alignment = { vertical: 'middle', horizontal: 'center' };
+                cell.border = { top:{style:'thin'}, left:{style:'thin'}, bottom:{style:'thin'}, right:{style:'thin'} };
+            });
+        });
+
+        worksheet.autoFilter = { from: { row: 3, column: 1 }, to: { row: 3, column: totalCols } };
+        
+        // Footer
+        const footerRowNumber = logsArray.length + 5;
+        worksheet.mergeCells(footerRowNumber, 1, footerRowNumber, totalCols);
+        const footerCell = worksheet.getCell(footerRowNumber, 1);
+        footerCell.value = `Báo cáo lịch sử xuất từ S-CHECK Pro vào ${new Date().toLocaleString('vi-VN')}`;
+        footerCell.font = { name: 'Times New Roman', italic: true, size: 10, color: { argb: 'FF7F7F7F' } };
+        footerCell.alignment = { horizontal: 'right' };
+
+        worksheet.columns.forEach(column => { column.width = 22; });
+        worksheet.getColumn(1).width = 8;
+
+        const buffer = await workbook.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        saveAs(blob, `LichSu_${createSlug(session.title)}.xlsx`);
+        showToast("Đã xuất file Excel thành công!", "success");
+
+    } catch (e) {
+        console.error(e);
+        showToast("Lỗi khi xuất dữ liệu lịch sử!", "error");
     }
 }
 
