@@ -899,8 +899,9 @@ async function submitAttendance() {
 
             // Ép kiểu về Number để so sánh chính xác
             const allowedRadius = Number(userSession.locationRadius) || 50; 
+            showToast(`Khoảng cách tính được: ${dist.toFixed(2)}m (Cho phép: ${allowedRadius}m)`, "info");
             if (dist > allowedRadius) { 
-                return showToast(`Thất bại! Bạn ở quá xa (${Math.round(dist)}m / Cho phép: ${allowedRadius}m)`, "error");
+                return showToast(`Thất bại! Bạn ở cách ${dist.toFixed(1)}m`, "error");
             }
         } catch (error) {
             return showToast("Vui lòng bật định vị để điểm danh!", "error");
