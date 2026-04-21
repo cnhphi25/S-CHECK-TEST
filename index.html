@@ -17,6 +17,23 @@
 
     <style>
 
+/* Chống trình duyệt đổ màu nền khi tự động điền mật khẩu/tài khoản */
+input:-webkit-autofill,
+input:-webkit-autofill:hover, 
+input:-webkit-autofill:focus, 
+input:-webkit-autofill:active {
+    -webkit-text-fill-color: white !important;
+    /* Dùng box-shadow để đè màu nền mặc định của trình duyệt sang màu Glass tối */
+    -webkit-box-shadow: 0 0 0px 1000px rgba(15, 23, 42, 0.95) inset !important;
+    transition: background-color 5000s ease-in-out 0s;
+    border: 1px solid rgba(59, 130, 246, 0.2) !important; /* Giữ màu viền xanh */
+}
+
+/* Ép màu nền cho tất cả input */
+input {
+    background-color: rgba(59, 130, 246, 0.05) !important;
+}
+
 /* Hiệu ứng rung lắc dữ dội */
 @keyframes shake-urgent {
     0%, 100% { transform: translateX(0) scale(1); }
@@ -130,8 +147,8 @@ tr.glass { background: none !important; border: none !important; box-shadow: non
 }
 
 #table-body {
-    border-spacing: 0 12px;
-    border-collapse: separate;
+    display: table-row-group;
+    width: 100%;
 }
 
 table {
@@ -252,12 +269,20 @@ table th:first-child, table td:first-child {
     50% { opacity: 0.4; }
     100% { transform: scale(2.2); opacity: 0; }
 }
+
+/* Animation cho thanh ngang dưới chữ */
+@keyframes radar-scan-bar {
+    0% { transform: translateX(-150%); }
+    100% { transform: translateX(350%); }
+}
+
+/* Đảm bảo khung Radar không bao giờ bị dãn hoặc méo */
 .radar-container {
-    position: relative;
-    width: 220px;   /* Kích thước Mobile như hiện tại */
-    height: 220px;
-    margin: 0 auto;
-    transition: all 0.5s ease;
+    width: 320px;
+    height: 320px;
+    aspect-ratio: 1 / 1;
+    z-index: 10;
+    pointer-events: none; /* Tránh tương tác làm lag radar */
 }
 
 @media (min-width: 1024px) {
@@ -270,22 +295,22 @@ table th:first-child, table td:first-child {
 .radar-circle {
     position: absolute;
     inset: 0;
-    border: 1px solid rgba(99, 102, 241, 0.3);
+    border: 1px solid rgba(99, 102, 241, 0.2);
     border-radius: 50%;
 }
 .radar-pulse {
     position: absolute;
     inset: 0;
-    border: 2px solid rgba(99, 102, 241, 0.5);
+    border: 2px solid rgba(99, 102, 241, 0.4);
     border-radius: 50%;
     animation: radar-pulse 2s infinite cubic-bezier(0.21, 0.53, 0.56, 0.8);
 }
 .radar-beam {
     position: absolute;
-    inset: 0;
+    inset: -1px;
     border-radius: 50%;
     background: conic-gradient(from 0deg, transparent 80%, rgba(99, 102, 241, 0.4) 100%);
-    animation: radar-beam 2s linear infinite; /* Radar nhìn "mượt" và chậm rãi hơn tương ứng với thời gian chờ lâu */
+    animation: radar-beam 4s linear infinite; /* Chậm lại một chút để trông "Pro" hơn */
 }
 
     </style>
@@ -364,96 +389,99 @@ table th:first-child, table td:first-child {
         <!-- Thêm font và icon từ CDN -->
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 
-<div id="view-auth" class="w-full max-w-md px-4 lg:px-0 mx-auto page-enter hidden">
-    <div class="text-center mb-8">
-        <!-- Logo với hiệu ứng đổ bóng và bo góc -->
-        <div class="relative inline-block">
+<!-- AUTH VIEW: TỰ ĐỘNG CÂN ĐỐI THEO MỌI KHUNG HÌNH -->
+<div id="view-auth" class="w-full max-w-[420px] mx-auto px-4 page-enter hidden flex-col justify-center items-center">
+    
+    <!-- HEADER AREA: Tự điều chỉnh lề theo chiều cao màn hình (min 2vh, max 4vh) -->
+    <div class="text-center w-full" style="margin-bottom: clamp(1rem, 3vh, 2rem);">
+        <div class="relative inline-block mb-3">
             <div class="absolute -inset-1 bg-gradient-to-r from-blue-600 to-cyan-400 rounded-2xl blur opacity-25"></div>
+            <!-- Logo size 72px -> 80px (Vừa phải trên PC) -->
             <img src="https://i.ibb.co/XfkmdYjC/LOGO-S-CHECK.png" 
-                 class="relative w-20 lg:w-28 h-20 lg:h-28 mx-auto mb-4 rounded-2xl border border-white/20 shadow-2xl object-cover">
+                 class="relative w-16 lg:w-20 h-16 lg:h-20 mx-auto rounded-2xl border border-white/20 shadow-2xl object-cover">
         </div>
-        <h1 class="text-3xl lg:text-4xl font-black uppercase tracking-tighter italic bg-gradient-to-br from-white to-gray-400 bg-clip-text text-transparent">
+        <h1 class="text-2xl lg:text-3xl font-black uppercase tracking-tighter italic bg-gradient-to-br from-white to-gray-400 bg-clip-text text-transparent leading-tight">
             ĐIỂM DANH TỰ ĐỘNG
         </h1>
     </div>
-<!-- CARD CONTAINER VỚI CÁI "MẢNH" -->
-    <div class="relative group">
-        <!-- ĐÂY LÀ CÁI "MẢNH" TÔ ĐỎ CỦA BẠN -->
-        <div class="absolute -top-4 left-1/2 -translate-x-1/2 z-20">
-            <div class="bg-indigo-600 px-8 py-2 rounded-full border border-white/20 shadow-[0_0_20px_rgba(79,70,229,0.5)]">
+
+    <!-- MAIN CARD: Container chính -->
+    <div class="w-full relative group">
+        <!-- Badge -->
+        <div class="absolute -top-3.5 left-1/2 -translate-x-1/2 z-20">
+            <div class="bg-indigo-600 px-7 py-1.5 rounded-full border border-white/20 shadow-xl">
                 <span id="auth-subtitle" class="text-[10px] text-white font-black uppercase tracking-[3px] whitespace-nowrap">
-                    ĐĂNG NHẬP HỆ THỐNG
+                    HỆ THỐNG TRUY CẬP
                 </span>
             </div>
         </div>
-    </div>
 
-    <!-- Card Container -->
-    <div class="relative group">
-        <!-- Hiệu ứng viền phát sáng chạy quanh -->
-        <div class="absolute -inset-0.5 bg-gradient-to-r from-blue-500 to-purple-600 rounded-[2rem] blur opacity-20 group-hover:opacity-40 transition duration-1000"></div>
+        <!-- Glow effect -->
+        <div class="absolute -inset-1 bg-gradient-to-r from-blue-500/20 to-purple-600/20 rounded-[2.5rem] blur-xl opacity-50"></div>
         
-        <div class="glass relative p-8 lg:p-10 rounded-[2rem] border border-white/10 shadow-2xl backdrop-blur-xl bg-black/40 space-y-5">
+        <!-- CARD BODY: Giảm Padding ngang để trông cân đối hơn -->
+        <div class="glass relative p-6 lg:p-8 rounded-[2rem] border border-white/10 shadow-2xl backdrop-blur-3xl bg-black/40 w-full" 
+             style="display: flex; flex-direction: column; gap: clamp(0.75rem, 2vh, 1.25rem);">
             
-            <!-- Input Email/SĐT -->
-            <div class="space-y-1">
-                <label class="text-[10px] text-slate-400 ml-2 uppercase font-bold tracking-widest">Tài khoản</label>
-                <div class="relative">
-                    <span class="absolute inset-y-0 left-0 pl-4 flex items-center text-slate-500">
-                        <i class="fa-solid fa-user-shield"></i>
-                    </span>
-                    <input type="text" id="auth-identifier" placeholder="Email hoặc SĐT" 
-                           class="w-full pl-11 pr-4 py-4 bg-white/5 border border-white/10 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-white placeholder:text-slate-600">
+            <!-- INPUT GROUPS: Dùng GAP để tự động dãn cách -->
+            <div class="space-y-4">
+                <!-- Input Tài khoản -->
+                <div class="space-y-1.5">
+                    <label class="text-[10px] text-blue-400/80 ml-2 uppercase font-bold tracking-widest">Tài khoản</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 pl-4 flex items-center text-blue-400/60">
+                            <i class="fa-solid fa-user-shield text-sm"></i>
+                        </span>
+                        <input type="text" id="auth-identifier" placeholder="Email hoặc SĐT" 
+                               class="w-full pl-11 pr-4 py-3.5 bg-white/5 border border-white/10 rounded-2xl focus:border-blue-500/50 outline-none transition-all text-white placeholder:text-slate-600 text-sm">
+                    </div>
+                </div>
+
+                <!-- Input Mật khẩu -->
+                <div class="space-y-1.5">
+                    <label class="text-[10px] text-blue-400/80 ml-2 uppercase font-bold tracking-widest">Mật khẩu</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 pl-4 flex items-center text-blue-400/60">
+                            <i class="fa-solid fa-lock text-sm"></i>
+                        </span>
+                        <input type="password" id="auth-password" placeholder="••••••••" 
+                               class="w-full pl-11 pr-12 py-3.5 bg-white/5 border border-white/10 rounded-2xl focus:border-blue-500/50 outline-none transition-all text-white text-sm">
+                        <button type="button" onclick="togglePassword('auth-password')" class="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-500 hover:text-white transition-colors">
+                            <i class="fa-solid fa-eye text-sm"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Input Xác nhận mật khẩu (Chỉ hiện khi đăng ký) -->
+                <div id="confirm-password-container" class="space-y-1.5">
+                    <label class="text-[10px] text-blue-400/80 ml-2 uppercase font-bold tracking-widest">Xác nhận lại mật khẩu</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 pl-4 flex items-center text-blue-400/60">
+                            <i class="fa-solid fa-check-double text-sm"></i>
+                        </span>
+                        <input type="password" id="auth-confirm-password" placeholder="••••••••" 
+                               class="w-full pl-11 pr-12 py-3.5 bg-white/5 border border-white/10 rounded-2xl focus:border-blue-500/50 outline-none transition-all text-white text-sm">
+                        <button type="button" onclick="togglePassword('auth-confirm-password')" class="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-500 hover:text-white transition-colors">
+                            <i class="fa-solid fa-eye text-sm"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
 
-            <!-- Input Mật khẩu -->
-            <div class="space-y-1">
-                <label class="text-[10px] text-slate-400 ml-2 uppercase font-bold tracking-widest">Mật khẩu</label>
-                <div class="relative">
-                    <span class="absolute inset-y-0 left-0 pl-4 flex items-center text-slate-500">
-                        <i class="fa-solid fa-lock"></i>
-                    </span>
-                    <input type="password" id="auth-password" placeholder="••••••••" 
-                           class="w-full pl-11 pr-12 py-4 bg-white/5 border border-white/10 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-white placeholder:text-slate-600">
-                    <button type="button" onclick="togglePassword('auth-password')" class="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-500 hover:text-white transition-colors">
-                        <i class="fa-solid fa-eye text-sm"></i>
-                    </button>
-                </div>
-            </div>
-
-<!-- XÁC NHẬN MẬT KHẨU (Đã thêm nút con mắt chuẩn) -->
-            <div id="confirm-password-container" class="space-y-1 hidden transition-all duration-500 overflow-visible">
-                <label class="text-[10px] text-blue-400 ml-2 uppercase font-bold tracking-widest">Xác nhận mật khẩu</label>
-                <div class="relative">
-                    <span class="absolute inset-y-0 left-0 pl-4 flex items-center text-blue-400">
-                        <i class="fa-solid fa-check-double"></i>
-                    </span>
-                    <input type="password" id="auth-confirm-password" placeholder="••••••••" 
-                           class="w-full pl-11 pr-12 py-4 bg-blue-500/5 border border-blue-500/20 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-white">
-                    <button type="button" onclick="togglePassword('auth-confirm-password')" class="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-500 hover:text-white transition-colors">
-                        <i class="fa-solid fa-eye text-sm"></i>
-                    </button>
-                </div>
-            </div>
-
-            <!-- Nút Action -->
-            <div class="pt-4 space-y-4">
-                <button onclick="handleAuth()" class="group relative w-full overflow-hidden rounded-2xl bg-blue-600 px-8 py-4 text-white transition-all hover:bg-blue-500 active:scale-95 active:shadow-inner">
+            <!-- BUTTONS -->
+            <div class="pt-2 space-y-3">
+                <button onclick="handleAuth()" class="group relative w-full overflow-hidden rounded-2xl bg-blue-600 hover:bg-blue-500 px-8 py-4 text-white transition-all active:scale-[0.98] shadow-lg shadow-blue-900/20">
                     <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:animate-[shimmer_2s_infinite]"></div>
-                    <span id="btn-auth-text" class="relative font-black uppercase tracking-widest text-xs">Đăng nhập ngay</span>
+                    <span id="btn-auth-text" class="relative font-black uppercase tracking-widest text-[12px]">Xác nhận truy cập</span>
                 </button>
 
                 <button id="btn-toggle-auth" onclick="toggleAuthMode()" 
-                        class="w-full text-[10px] text-slate-500 hover:text-blue-400 uppercase font-black tracking-[0.2em] transition-colors">
-                    Chưa có tài khoản? <span class="text-blue-500">Đăng ký</span>
+                        class="w-full text-[10px] text-slate-400 hover:text-blue-400 uppercase font-bold tracking-[2px] transition-colors py-1">
+                    Chưa có tài khoản? <span class="text-blue-500 underline underline-offset-4">Đăng ký ngay</span>
                 </button>
             </div>
         </div>
     </div>
-    
-    <!-- Footer nhỏ -->
-    <p class="text-center mt-8 text-[9px] text-slate-600 uppercase tracking-widest">Security System v5.0</p>
 </div>
 
         <!-- USER VIEW -->
@@ -489,6 +517,24 @@ table th:first-child, table td:first-child {
                 <button onclick="activateSession()" class="btn-glow w-full py-4 rounded-2xl text-white font-black uppercase text-xs">Kích hoạt</button>
             </div>
         </div>
+        <!-- NÚT BẬT CHỐNG ĐIỂM DANH HỘ -->
+        <div class="space-y-4 pt-4 border-t border-white/5">
+            <div class="flex items-center justify-between">
+                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Yêu cầu Vị trí (GPS)</label>
+                <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" id="a-require-location" class="sr-only peer" onchange="notifyLocationToggle()">
+                    <div class="w-10 h-5 bg-slate-700 rounded-full peer peer-checked:bg-blue-600 transition-all after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-5 shadow-inner"></div>
+                </label>
+            </div>
+
+            <!-- THÊM ĐOẠN NÀY VÀO NGAY DƯỚI -->
+            <div id="radius-setting" class="flex items-center justify-between mt-2 opacity-50 transition-opacity">
+                <span class="text-[9px] font-bold text-slate-500 uppercase">Bán kính cho phép (mét):</span>
+                <input type="number" id="a-location-radius" value="50" oninput="updateGpsHint()" min="5" max="5000" 
+                    class="w-20 p-1 text-center rounded-lg bg-white/5 border border-white/10 text-[10px] font-bold text-indigo-400 focus:border-indigo-500 outline-none">
+            </div>
+            <p id="gps-hint" class="text-[9px] text-slate-500 italic">- Chỉ cho phép điểm danh khi ở gần bạn (50m) -</p>
+        </div>
 <!-- QR CODE SECTION -->
 <div id="qr-container" class="glass p-6 lg:p-8 rounded-3xl text-center hidden border border-indigo-500/20 relative overflow-hidden group">
     <!-- Hiệu ứng tia sáng quét (Scan animation) -->
@@ -521,6 +567,45 @@ table th:first-child, table td:first-child {
         from { opacity: 0; transform: translateY(-10px); }
         to { opacity: 1; transform: translateY(0); }
     }
+
+    /* Căn giữa hoàn hảo cho View Auth */
+#view-auth {
+    display: none; /* Mặc định ẩn */
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    overflow-y: auto; /* Nếu màn hình quá nhỏ thì vẫn cuộn được */
+}
+
+#view-auth.active-flex {
+    display: flex !important;
+}
+
+/* Hiệu ứng dãn khung mượt mà cho Container chứa các input */
+#auth-card-container {
+    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    transform-origin: center;
+}
+
+/* Trạng thái mặc định: Ẩn bằng độ cao và độ mờ */
+#confirm-password-container {
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    margin-top: 0;
+}
+
+/* Khi có class .show (do JS thêm vào khi bấm Đăng ký) */
+#confirm-password-container.show {
+    max-height: 150px; 
+    opacity: 1;
+    margin-top: 1.25rem; /* Tạo khoảng cách space-y-5 */
+}
 
     </style>
 
@@ -571,6 +656,34 @@ table th:first-child, table td:first-child {
         <div class="flex justify-between items-center mb-2"> <!-- Đã đổi mb-10 thành mb-2 -->
             <h2 id="report-title" class="text-2xl font-black italic uppercase">Báo cáo</h2>
             <div class="flex gap-2">
+                <div class="flex items-center gap-4 bg-[#0f172a]/80 border border-white/10 px-5 py-3 rounded-2xl backdrop-blur-md shadow-2xl group transition-all hover:border-indigo-500/40">
+                    <div class="flex flex-col">
+                        <!-- Đổi nhãn thành Alert System để bao quát cả thông báo và âm thanh -->
+                        <span class="text-[9px] font-black text-indigo-400 uppercase tracking-[3px] opacity-70 group-hover:opacity-100 transition-opacity">Thông báo & âm thanh</span>
+                        <span id="status-text" class="text-[11px] font-extrabold text-emerald-400 flex items-center gap-1.5 uppercase tracking-tighter">
+                            <span id="live-indicator" class="relative flex h-2 w-2">
+                                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                            </span>
+                            <span id="status-label">Trạng thái: ON</span>
+                        </span>
+                    </div>
+
+                    <label class="relative inline-flex items-center cursor-pointer select-none">
+                        <input type="checkbox" id="notify-toggle" class="sr-only peer" checked onchange="toggleMute()">
+                        <div class="w-12 h-6 bg-slate-700/50 rounded-full peer 
+                                    peer-checked:bg-indigo-600/20 
+                                    peer-checked:border-indigo-500/50
+                                    border-2 border-white/5 
+                                    transition-all duration-500 ease-in-out
+                                    after:content-[''] after:absolute after:top-[4px] after:left-[4px] 
+                                    after:bg-slate-400 after:rounded-full after:h-[16px] after:w-[16px] 
+                                    after:transition-all after:duration-500 after:ease-[cubic-bezier(0.68,-0.55,0.265,1.55)]
+                                    peer-checked:after:translate-x-6 peer-checked:after:bg-indigo-400
+                                    peer-checked:after:shadow-[0_0_15px_rgba(129,140,248,0.8)] shadow-inner">
+                        </div>
+                    </label>
+                </div>
                 <button onclick="exportToExcel()" class="text-[10px] font-black text-emerald-400 uppercase border border-emerald-400/20 px-3 py-2 rounded-xl hover:bg-emerald-400/10 flex items-center gap-2">
                     <i class="fa-solid fa-file-excel"></i> Xuất file Excel
                 </button>
@@ -672,6 +785,8 @@ firebase.initializeApp(firebaseConfig);
 const rdb = firebase.database();
 const auth = firebase.auth();
 
+let isMuted = false; // Luôn mặc định là false (tức là không tắt tiếng)
+let isFirstLoad = true; // Biến để tránh nổ thông báo cũ khi vừa mở trang
 let isLoginMode = true;
 let currentSession = null;
 let userSession = null;
@@ -695,62 +810,111 @@ function createSlug(str) {
 // 1. KHỞI TẠO SỰ KIỆN & TẠO SHEET (GET)
 async function activateSession() {
     const title = document.getElementById('a-title').value.trim();
+    const radius = parseInt(document.getElementById('a-location-radius').value) || 50; 
     const fields = Array.from(document.querySelectorAll('.field-input')).map(i => i.value.trim()).filter(v => v);
     
     if(!title) return showToast("Vui lòng nhập tên sự kiện!", "info");
     
+    // CẤU HÌNH GPS
+    const isRequired = document.getElementById('a-require-location').checked;
+    let adminPos = null;
+
+    if (isRequired) {
+        showToast("Đang xác thực tọa độ quản trị...", "info");
+        try {
+            const pos = await new Promise((res, rej) => 
+                navigator.geolocation.getCurrentPosition(res, rej, { 
+                    enableHighAccuracy: true,
+                    timeout: 5000 
+                })
+            );
+            adminPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        } catch (e) {
+            // Nếu lỗi GPS, thông báo nhưng vẫn tiếp tục để hiện QR
+            showToast("⚠️ GPS lỗi! Đã tắt chức năng chống điểm danh hộ.", "error");
+            document.getElementById('a-require-location').checked = false;
+        }
+    }
+    
     const code = createSlug(title); 
-    showToast("Đang kích hoạt hệ thống...", "info");
+    const sessionData = { 
+        code: code, 
+        title: title, 
+        fields: fields, 
+        requireLocation: document.getElementById('a-require-location').checked, 
+        locationRadius: radius, // THÊM DÒNG NÀY VÀO ĐỐI TƯỢNG LƯU TRỮ
+        adminLocation: adminPos,             
+        ts: Date.now() 
+    }; 
 
     try {
-        // Chỉ lưu vào Firebase, không gọi Google Script nữa
-        const sessionData = { 
-            code: code, 
-            title: title, 
-            fields: fields, 
-            ts: Date.now() 
-        }; 
-        
         await rdb.ref('dynamic_attendance/sessions/' + code).set(sessionData);
         currentSession = sessionData;
         
-        showToast("Đã kích hoạt thành công!", "success");
-
+        // --- TẠO MÃ QR (Đã sửa URL API ổn định hơn) ---
         let roomUrl = window.location.origin + window.location.pathname + "?room=" + code;
-        lastQRUrl = `https://api.qrserver.com/v1/create-qr-code/?size=1000x1000&data=${encodeURIComponent(roomUrl)}`;
+        lastQRUrl = `https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(roomUrl)}`;
         
         document.getElementById('qr-container').classList.remove('hidden');
         document.getElementById('qr-code').innerHTML = `
             <div class="bg-white p-4 rounded-[2rem] flex flex-col items-center">
-                <img src="${lastQRUrl}" class="w-48 h-48 rounded-xl">
+                <img src="${lastQRUrl}" class="w-48 h-48 rounded-xl shadow-inner">
                 <div class="mt-4 text-center">
                     <h4 class="text-black text-xl font-black italic uppercase tracking-tighter leading-none">QUÉT MÃ ĐIỂM DANH</h4>
                     <p class="text-slate-400 text-[7px] font-bold uppercase tracking-[3px] mt-1.5">S-CHECK PRO SYSTEM</p>
                 </div>
             </div>`;
         
-        listenLogs(code); // Bắt đầu lắng nghe danh sách điểm danh
+        listenLogs(code);
+        showToast("Hệ thống đã sẵn sàng!", "success");
     } catch (e) {
-        showToast("Lỗi khi lưu dữ liệu vào hệ thống!", "error");
+        showToast("Lỗi kết nối Firebase!", "error");
     }
 }
 
-// 2. GỬI ĐIỂM DANH
+// Thêm hàm tính khoảng cách vào bất cứ đâu trong script
+function getDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371e3; // Mét
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+}
+
 async function submitAttendance() {
     const vals = Array.from(document.querySelectorAll('.u-input')).map(i => i.value.trim());
     if(vals.some(v => !v)) return showToast("Điền đủ thông tin!", "info");
     
+    // LOGIC KIỂM TRA GPS
+    if (userSession && userSession.requireLocation && userSession.adminLocation) {
+        showToast("Xác thực vị trí hiện diện...", "info");
+        try {
+            const position = await new Promise((res, rej) => 
+                navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: true })
+            );
+            const dist = getDistance(
+                position.coords.latitude, position.coords.longitude,
+                userSession.adminLocation.lat, userSession.adminLocation.lng
+            );
+
+            // Ép kiểu về Number để so sánh chính xác
+            const allowedRadius = Number(userSession.locationRadius) || 50; 
+            if (dist > allowedRadius) { 
+                return showToast(`Thất bại! Bạn ở quá xa (${Math.round(dist)}m / Cho phép: ${allowedRadius}m)`, "error");
+            }
+        } catch (error) {
+            return showToast("Vui lòng bật định vị để điểm danh!", "error");
+        }
+    }
+
     const time = new Date().toLocaleString('vi-VN');
     
     try {
-        // Lưu vào Firebase
         await rdb.ref('dynamic_attendance/logs/' + userSession.code).push({ 
             values: vals, 
             time: time, 
             ts: Date.now() 
         });
-
-        // XÓA PHẦN FETCH GỬI SANG MASTER_SCRIPT_URL TẠI ĐÂY
 
         document.getElementById('success-overlay').style.display = 'flex';
         confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
@@ -771,7 +935,6 @@ function checkAuthState() {
         const nav = document.getElementById('nav-auth');
         const params = new URLSearchParams(window.location.search);
         
-        // Nếu là khách đi điểm danh qua link ?room=... thì không hiện nút Thoát Admin
         if (params.get('room')) {
             nav.innerHTML = ""; 
             return;
@@ -780,9 +943,24 @@ function checkAuthState() {
         if (user) {
             // --- KHI ĐÃ ĐĂNG NHẬP ---
             showView('admin');
-            const displayName = user.email.replace('@scheck.pro', '');
             
-            // Vẽ nút Thoát vào Menu
+            // AUTO ON: Reset trạng thái thông báo & âm thanh về ON
+            isMuted = false;
+            const toggle = document.getElementById('notify-toggle');
+            if (toggle) toggle.checked = true; // Bật thanh gạt
+
+            const statusLabel = document.getElementById('status-label');
+            const statusText = document.getElementById('status-text');
+            const indicator = document.getElementById('live-indicator');
+            
+            // Cập nhật giao diện về màu Xanh (Emerald) và hiện chấm nháy
+            if (statusLabel && statusText && indicator) {
+                statusLabel.innerText = "Trạng thái: ON";
+                statusText.classList.replace('text-slate-500', 'text-emerald-400');
+                indicator.classList.remove('hidden');
+            }
+
+            const displayName = user.email.replace('@scheck.pro', '');
             nav.innerHTML = `
                 <button onclick="auth.signOut()" 
                         class="text-[10px] font-black text-red-500 uppercase bg-red-500/5 border border-red-500/20 px-4 py-2 rounded-xl hover:bg-red-500 hover:text-white transition-all shadow-lg active:scale-90">
@@ -792,11 +970,9 @@ function checkAuthState() {
             document.getElementById('admin-fields-list').innerHTML = "";
             addField("Họ và Tên"); addField("Lớp / Phòng ban");
         } else {
-            // --- KHI ĐÃ ĐĂNG XUẤT ---
             showView('auth');
-            nav.innerHTML = ""; // DÒNG NÀY LÀ QUAN TRỌNG NHẤT: Xóa nút Thoát khi user thoát
+            nav.innerHTML = ""; 
         }
-        
         hideInitialLoader();
     });
 }
@@ -861,33 +1037,56 @@ function checkCode(forced) {
 
 
 function listenLogs(code) {
+    setupRealtimeNotify(code);
     rdb.ref('dynamic_attendance/logs/' + code).on('value', snap => {
         const body = document.getElementById('table-body');
         const head = document.getElementById('table-head');
         
 if(!snap.exists()) { 
+    // Tìm container chứa bảng và khóa việc cuộn
+    const tableContainer = document.querySelector('.table-container');
+    if(tableContainer) {
+        tableContainer.style.overflow = 'hidden'; // Khóa lăn chuột
+        tableContainer.style.height = '500px';    // Cố định chiều cao vùng quét
+    }
+
     body.innerHTML = `
         <tr>
-            <td colspan="20" class="py-20 text-center border-none bg-transparent"> 
-                <div class="flex flex-col items-center justify-center min-h-[300px]">
-                    <div class="radar-container mb-10">
-                    <div class="radar-circle"></div>
-                    <div class="radar-circle" style="inset: 20%"></div>
-                    <div class="radar-circle" style="inset: 40%"></div>
-                    <div class="radar-circle" style="inset: 60%"></div>
-                    <div class="radar-pulse"></div>
-                    <div class="radar-pulse" style="animation-delay: 1s"></div>
-                    <div class="radar-beam"></div>
-                    <div class="absolute inset-0 flex items-center justify-center">
-                        <div class="w-3 h-3 bg-indigo-500 rounded-full shadow-[0_0_25px_rgba(99,102,241,1)]"></div>
+            <td colspan="20" class="p-0 border-none bg-transparent" style="vertical-align: middle; height: 500px;"> 
+                <div class="relative flex flex-col items-center justify-center w-full h-full">
+                    <!-- Khung bao Radar khóa tâm -->
+                    <div class="radar-container relative flex items-center justify-center">
+                        <div class="radar-circle"></div>
+                        <div class="radar-circle" style="inset: 20%"></div>
+                        <div class="radar-circle" style="inset: 40%"></div>
+                        <div class="radar-circle" style="inset: 60%"></div>
+                        <div class="radar-pulse"></div>
+                        <div class="radar-beam"></div>
+                        <!-- Điểm trung tâm cố định -->
+                        <div class="absolute w-2.5 h-2.5 bg-indigo-500 rounded-full shadow-[0_0_20px_rgba(99,102,241,1)]"></div>
+                    </div>
+                    
+                    <!-- Văn bản hiệu ứng (Position Absolute để không đẩy Radar) -->
+                    <div class="absolute bottom-10 left-1/2 -translate-x-1/2 text-center pointer-events-none">
+                        <p class="text-[10px] font-black uppercase tracking-[8px] text-indigo-400/30 animate-pulse whitespace-nowrap">
+                            Hệ thống đang quét tín hiệu...
+                        </p>
+                        <div class="h-[1px] w-32 bg-indigo-500/10 mx-auto mt-4 overflow-hidden">
+                            <div class="h-full bg-indigo-500/40 w-1/4 animate-[radar-scan-bar_2s_linear_infinite]"></div>
+                        </div>
                     </div>
                 </div>
-                <p class="text-[12px] font-black uppercase tracking-[10px] text-indigo-400/40 animate-pulse mt-20">
-                    Hệ thống đang sẵn sàng quét tín hiệu...
-                </p>
             </td>
         </tr>`; 
     return; 
+} else {
+    // Mở lại chế độ cuộn khi có dữ liệu
+    const tableContainer = document.querySelector('.table-container');
+    if(tableContainer) {
+        tableContainer.style.overflow = 'auto';
+        tableContainer.style.height = 'auto';
+        tableContainer.style.maxHeight = '65vh'; 
+    }
 }
 
         // 1. Header
@@ -953,25 +1152,30 @@ async function handleAuth() {
 function toggleAuthMode() {
     isLoginMode = !isLoginMode;
     
-    const authSubtitle = document.getElementById('auth-subtitle'); // Thẻ nằm trong "mảnh"
+    // Reset inputs
+    document.getElementById('auth-identifier').value = "";
+    document.getElementById('auth-password').value = "";
+    document.getElementById('auth-confirm-password').value = "";
+
+    const authSubtitle = document.getElementById('auth-subtitle'); 
     const confirmField = document.getElementById('confirm-password-container');
     const btnText = document.getElementById('btn-auth-text');
     const toggleBtn = document.getElementById('btn-toggle-auth');
 
     if (!isLoginMode) {
-        // Khi chuyển sang Đăng ký
+        // Chế độ Đăng ký
         authSubtitle.innerText = "ĐĂNG KÝ TÀI KHOẢN";
-        authSubtitle.parentElement.classList.replace('bg-indigo-600', 'bg-emerald-600'); // Đổi màu mảnh sang xanh lá nếu muốn
+        authSubtitle.parentElement.classList.replace('bg-indigo-600', 'bg-emerald-600'); 
         
-        confirmField.style.display = 'block';
+        confirmField.classList.add('show'); // Kích hoạt hiệu ứng dãn
         btnText.innerText = "Đăng ký ngay";
         toggleBtn.innerHTML = "Đã có tài khoản? <span class='text-blue-500'>Đăng nhập</span>";
     } else {
-        // Khi quay lại Đăng nhập
+        // Chế độ Đăng nhập
         authSubtitle.innerText = "ĐĂNG NHẬP HỆ THỐNG";
-        authSubtitle.parentElement.classList.replace('bg-emerald-600', 'bg-indigo-600'); // Quay về màu xanh tím
+        authSubtitle.parentElement.classList.replace('bg-emerald-600', 'bg-indigo-600'); 
         
-        confirmField.style.display = 'none';
+        confirmField.classList.remove('show'); // Kích hoạt hiệu ứng thu lại
         btnText.innerText = "Đăng nhập ngay";
         toggleBtn.innerHTML = "Chưa có tài khoản? <span class='text-blue-500'>Đăng ký</span>";
     }
@@ -990,8 +1194,24 @@ function togglePassword(id) {
 }
 
 function showView(v) {
-    ['auth', 'admin', 'user'].forEach(i => document.getElementById(`view-${i}`).classList.add('hidden'));
-    document.getElementById(`view-${v}`).classList.remove('hidden');
+    // Ẩn tất cả các view và xóa class active
+    ['auth', 'admin', 'user'].forEach(i => {
+        const el = document.getElementById(`view-${i}`);
+        el.classList.add('hidden');
+        el.classList.remove('active-flex');
+    });
+    
+    const targetView = document.getElementById(`view-${v}`);
+    targetView.classList.remove('hidden');
+
+    // Xử lý riêng cho trang Auth
+    const mainNav = document.querySelector('nav');
+    if (v === 'auth') {
+        mainNav.classList.add('hidden');
+        targetView.classList.add('active-flex'); // Kích hoạt căn giữa
+    } else {
+        mainNav.classList.remove('hidden');
+    }
 }
 
 function addField(val = "") {
@@ -1371,24 +1591,31 @@ async function showHistory() {
 function renderHistoryItems(items) {
     const listContainer = document.getElementById('history-list');
     listContainer.innerHTML = items.map(item => `
-        <div class="history-item glass p-4 rounded-2xl border border-white/5 hover:border-indigo-500/30 transition-all group">
-            <div class="flex justify-between items-start">
+        <div class="history-item glass p-4 lg:p-5 rounded-2xl border border-white/5 hover:border-indigo-500/30 transition-all group">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <!-- THÔNG TIN SỰ KIỆN -->
                 <div class="space-y-1">
-                    <h4 class="font-black text-sm text-white uppercase group-hover:text-indigo-400 transition-colors">${item.title}</h4>
-                    <p class="text-[9px] text-slate-600">${new Date(item.ts).toLocaleString('vi-VN')}</p>
+                    <h4 class="font-black text-sm lg:text-base text-white uppercase group-hover:text-indigo-400 transition-colors tracking-tight">${item.title}</h4>
+                    <div class="flex items-center gap-2 text-slate-600">
+                        <i class="fa-regular fa-calendar-check text-[10px]"></i>
+                        <p class="text-[10px] font-bold">${new Date(item.ts).toLocaleString('vi-VN')}</p>
+                    </div>
                 </div>
-                <div class="flex gap-2">
-                    <!-- NÚT XUẤT EXCEL MỚI (THAY CHO NÚT MỞ SHEET) -->
+
+                <!-- CÁC NÚT THAO TÁC DÀI -->
+                <div class="flex flex-wrap gap-2 w-full sm:w-auto">
+                    <!-- NÚT XUẤT EXCEL DÀI -->
                     <button onclick="exportSpecificSession('${item.code}')" 
-                            class="p-2 bg-emerald-500/10 text-emerald-500 rounded-lg hover:bg-emerald-500 hover:text-white transition-all shadow-sm" 
-                            title="Xuất file Excel">
-                        <i class="fa-solid fa-file-excel"></i>
+                            class="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-500/10 text-emerald-500 rounded-xl hover:bg-emerald-500 hover:text-white transition-all shadow-sm border border-emerald-500/20">
+                        <i class="fa-solid fa-file-excel text-xs"></i>
+                        <span class="text-[10px] font-black uppercase whitespace-nowrap tracking-wider">Xuất File Excel</span>
                     </button>
-                    <!-- Nút khôi phục xem báo cáo trên web -->
+
+                    <!-- NÚT XEM BÁO CÁO DÀI -->
                     <button onclick="restoreSession('${item.code}')" 
-                            class="p-2 bg-indigo-500/10 text-indigo-500 rounded-lg hover:bg-indigo-500 hover:text-white transition-all shadow-sm" 
-                            title="Xem báo cáo trên web">
-                        <i class="fa-solid fa-chart-column"></i>
+                            class="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-500/10 text-indigo-500 rounded-xl hover:bg-indigo-500 hover:text-white transition-all shadow-sm border border-indigo-500/20">
+                        <i class="fa-solid fa-chart-column text-xs"></i>
+                        <span class="text-[10px] font-black uppercase whitespace-nowrap tracking-wider">Xem Báo Cáo</span>
                     </button>
                 </div>
             </div>
@@ -1413,30 +1640,30 @@ function closeHistory() {
 
 // Hàm khôi phục lại phiên làm việc cũ để xem báo cáo trực tiếp
 async function restoreSession(code) {
-    showToast("Đang khôi phục phiên...", "info");
+    showToast("Đang tải dữ liệu...", "info");
     const snap = await rdb.ref('dynamic_attendance/sessions/' + code).once('value');
     if (snap.exists()) {
         currentSession = snap.val();
         document.getElementById('report-title').innerText = currentSession.title;
         
-        // Hiển thị mã QR cũ
+        // Tạo lại QR khi khôi phục
         let roomUrl = window.location.origin + window.location.pathname + "?room=" + code;
-        lastQRUrl = `https://api.qrserver.com/v1/create-qr-code/?size=1000x1000&data=${encodeURIComponent(roomUrl)}`;
+        lastQRUrl = `https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(roomUrl)}`;
+        
+        document.getElementById('display-room-code').innerText = "MÃ: " + code.toUpperCase();
         document.getElementById('qr-container').classList.remove('hidden');
-        // Hiển thị mã QR cũ khi khôi phục lịch sử
         document.getElementById('qr-code').innerHTML = `
             <div class="bg-white p-4 rounded-[2rem] flex flex-col items-center">
-                <img src="${lastQRUrl}" class="w-48 h-48 rounded-xl">
+                <img src="${lastQRUrl}" class="w-48 h-48 rounded-xl shadow-lg">
                 <div class="mt-4 text-center">
                     <h4 class="text-black text-xl font-black italic uppercase tracking-tighter leading-none">QUÉT MÃ ĐIỂM DANH</h4>
                     <p class="text-slate-400 text-[7px] font-bold uppercase tracking-[3px] mt-1.5">S-CHECK PRO SYSTEM</p>
                 </div>
             </div>`;
         
-        // Lắng nghe dữ liệu mới
         listenLogs(code);
         closeHistory();
-        showToast("Đã khôi phục!", "success");
+        showToast("Đã khôi phục thành công!", "success");
     }
 }
 
@@ -1631,6 +1858,149 @@ async function exportSpecificSession(code) {
     }
 }
 
+// Trạng thái mặc định: isMuted = false (nghĩa là đang bật âm và thông báo)
+function toggleMute() {
+    const toggle = document.getElementById('notify-toggle');
+    const statusLabel = document.getElementById('status-label');
+    const statusText = document.getElementById('status-text');
+    const indicator = document.getElementById('live-indicator');
+    
+    // Gán lại biến isMuted dựa trên trạng thái thanh gạt
+    isMuted = !toggle.checked;
+
+    if (isMuted) {
+        // TRẠNG THÁI TẮT (Silent Mode)
+        statusLabel.innerText = "Trạng thái: OFF";
+        statusText.classList.replace('text-emerald-400', 'text-slate-500');
+        indicator.classList.add('hidden'); // Ẩn chấm đỏ nhấp nháy
+        showToast("Đã dừng âm thanh & thông báo điểm danh", "info");
+    } else {
+        // TRẠNG THÁI BẬT (Live Mode)
+        statusLabel.innerText = "Trạng thái: ON";
+        statusText.classList.replace('text-slate-500', 'text-emerald-400');
+        indicator.classList.remove('hidden'); // Hiện lại chấm đỏ
+        showToast("Đã kích hoạt âm thanh & thông báo điểm danh", "success");
+    }
+}
+
+// Logic nổ thông báo khi có người mới
+function setupRealtimeNotify(code) {
+    const logsRef = rdb.ref('dynamic_attendance/logs/' + code);
+    
+    // Chống nổ thông báo dữ liệu cũ khi mới vào trang
+    isFirstLoad = true;
+    logsRef.once('value').then(() => {
+        setTimeout(() => { isFirstLoad = false; }, 2000); 
+    });
+
+    logsRef.on('child_added', (snap) => {
+        // Nếu là lần đầu load hoặc hệ thống đang bị Mute/Pause thì dừng tất cả
+        if (isFirstLoad || isMuted) return; 
+
+        const data = snap.val();
+        const userName = (data.values && data.values[0]) ? data.values[0] : "Khách mới";
+
+        // Chỉ khi isMuted == false mới thực hiện 2 lệnh dưới đây
+        // 1. "Nổ" thông báo Visual (Toast)
+        showToast(`🔔 MỚI: ${userName.toUpperCase()} đã điểm danh`, "success");
+
+        // 2. "Nổ" thông báo Audio (Beep)
+        playPingSound();
+    });
+}
+
+function playPingSound() {
+    try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+
+        oscillator.type = 'sine'; // Tiếng tít tít êm tai
+        oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // Tần số 880Hz (Nốt A5)
+        gainNode.gain.setValueAtTime(0.08, audioCtx.currentTime); // Âm lượng nhỏ
+
+        oscillator.start();
+        oscillator.stop(audioCtx.currentTime + 0.15); // Chỉ kéo dài 0.15 giây
+    } catch(e) {
+        console.warn("Browser blocked sound play until first interaction");
+    }
+}
+
+function notifyLocationToggle() {
+    const toggle = document.getElementById('a-require-location');
+    const radiusInput = document.getElementById('a-location-radius');
+    const radiusSetting = document.getElementById('radius-setting'); // Thêm dòng này
+    const hint = document.getElementById('gps-hint');
+    
+    const currentRadius = radiusInput.value || 50;
+
+    if (toggle.checked) {
+        radiusSetting.style.opacity = "1";
+        showToast("🔒 ĐÃ BẬT: Hệ thống sẽ bắt đầu quét GPS", "success");
+        hint.classList.replace('text-slate-500', 'text-emerald-400');
+        hint.innerText = `- Chế độ bảo mật cao: Chỉ điểm danh trong bán kính ${currentRadius}m -`;
+    } else {
+        radiusSetting.style.opacity = "0.5";
+        showToast("🔓 ĐÃ TẮT: Cho phép điểm danh từ xa (Tự do)", "info");
+        hint.classList.replace('text-emerald-400', 'text-slate-500');
+        hint.innerText = "- Chế độ mở: Không quét vị trí người dùng -";
+    }
+}
+
+// Hàm cập nhật dòng chữ gợi ý khi admin thay đổi số mét
+function updateGpsHint() {
+    const radius = document.getElementById('a-location-radius').value || 50;
+    const hint = document.getElementById('gps-hint');
+    if (document.getElementById('a-require-location').checked) {
+        hint.innerText = `- Chế độ bảo mật cao: Chỉ điểm danh trong bán kính ${radius}m -`;
+    }
+}
+
+async function deleteSession(code) {
+    // Tận dụng hàm showConfirm có sẵn trong code của bạn
+    showConfirm(`Xác nhận xóa vĩnh viễn toàn bộ dữ liệu của sự kiện này?`, async () => {
+        try {
+            showToast("Đang thực hiện xóa...", "info");
+
+            // 1. Xóa cấu hình sự kiện trong sessions
+            await rdb.ref('dynamic_attendance/sessions/' + code).remove();
+
+            // 2. Xóa danh sách người điểm danh trong logs
+            await rdb.ref('dynamic_attendance/logs/' + code).remove();
+
+            // 3. Nếu đang mở xem sự kiện bị xóa, dọn trắng giao diện luôn
+            if (currentSession && currentSession.code === code) {
+                currentSession = null;
+                document.getElementById('table-body').innerHTML = "";
+                document.getElementById('table-head').innerHTML = "";
+                document.getElementById('report-title').innerText = "Báo cáo";
+                document.getElementById('qr-container').classList.add('hidden');
+            }
+
+            // 4. Reload danh sách lịch sử sau khi xóa thành công
+            showHistory(); 
+            showToast("Đã xóa sạch dữ liệu khỏi server!", "success");
+
+        } catch (e) {
+            showToast("Lỗi: Không thể kết nối server để xóa!", "error");
+        }
+    });
+}
+
+// Bổ sung thêm logic cho hàm xóa lẻ 1 người trong bảng (Nút X đỏ ngoài table)
+async function deleteLog(id) {
+    if (!currentSession || !currentSession.code) return;
+    try {
+        await rdb.ref('dynamic_attendance/logs/' + currentSession.code + '/' + id).remove();
+        showToast("Đã xóa một dòng dữ liệu", "info");
+    } catch (e) {
+        showToast("Lỗi khi xóa dòng!", "error");
+    }
+}
+
 </script>
 <!-- MODAL LỊCH SỬ SỰ KIỆN -->
 <div id="history-modal" class="fixed inset-0 z-[10004] hidden items-center justify-center bg-black/90 backdrop-blur-md p-4">
@@ -1654,6 +2024,19 @@ async function exportSpecificSession(code) {
 /* Thanh cuộn cho danh sách lịch sử */
 .custom-scrollbar::-webkit-scrollbar { width: 4px; }
 .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(99, 102, 241, 0.3); border-radius: 10px; }
+
+@keyframes scan-line {
+    0% { transform: translateX(-150%); }
+    100% { transform: translateX(350%); }
+}
+
+/* Đảm bảo bảng báo cáo không làm dãn Card ra quá mức */
+.table-container {
+    max-height: 65vh; /* Khóa chiều cao lại để tránh Radar đẩy Layout đi quá xa */
+    overflow-y: auto;
+    position: relative;
+}
+
 </style>
 </body>
 </html>
