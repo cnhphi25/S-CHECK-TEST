@@ -1013,6 +1013,7 @@ let currentSession = null;
 let userSession = null;
 let lastQRUrl = "";
 let confirmCallback = null;
+let pendingRadius = 50; 
 
 function createSlug(str) {
     str = str.toLowerCase().trim();
@@ -1031,12 +1032,11 @@ function createSlug(str) {
 // 1. KHỞI TẠO SỰ KIỆN & TẠO SHEET (GET)
 async function activateSession() {
     const user = auth.currentUser;
-    if (!user) return showToast("Bạn cần đăng nhập!", "error");
+    if (!user) return showToast("Bạn chưa đăng nhập!", "error");
 
     const title = document.getElementById('a-title').value.trim();
     const fields = Array.from(document.querySelectorAll('.field-input')).map(i => i.value.trim()).filter(v => v);
-    const isGpsRequired = document.getElementById('a-require-location').checked; // Lấy trạng thái GPS
-    const radius = parseInt(document.getElementById('a-location-radius').value) || 50;
+    const isGpsRequired = document.getElementById('a-require-location').checked;
 
     if(!title) return showToast("Vui lòng nhập tên sự kiện!", "info");
     
@@ -1048,38 +1048,47 @@ async function activateSession() {
             code: code, 
             title: title, 
             fields: fields, 
-            requireLocation: document.getElementById('a-require-location').checked, 
-            locationRadius: pendingRadius, // Thay vì lấy từ input, lấy từ biến pendingRadius đã lưu
+            requireLocation: isGpsRequired, 
+            locationRadius: pendingRadius, // Lấy từ biến toàn cục
             ts: Date.now(),
             ownerId: user.uid 
-        };
+        }; 
         
+        // 1. Ghi dữ liệu Session
         await rdb.ref('dynamic_attendance/sessions/' + code).set(sessionData);
-        await rdb.ref(`dynamic_attendance/users/${user.uid}/my_sessions/${code}`).set(true);
+        
+        // 2. Ghi vào lịch sử cá nhân của Admin
+        await rdb.ref('dynamic_attendance/users/' + user.uid + '/my_sessions/' + code).set(true);
 
         currentSession = sessionData;
         
-        // --- LOGIC QUAN TRỌNG: NẾU LÀ PC VÀ BẬT GPS THÌ HIỆN MODAL QR MỎ NEO ---
+        // LOGIC HIỆN QR MỎ NEO NẾU DÙNG PC + BẬT GPS
         if (isGpsRequired && adminDeviceType === 'pc') {
             const anchorUrl = window.location.origin + window.location.pathname + "?anchor=" + code;
-            document.getElementById('anchor-qr-box').innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(anchorUrl)}" class="rounded-xl">`;
+            document.getElementById('anchor-qr-box').innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(anchorUrl)}" style="border-radius:15px;">`;
             document.getElementById('anchor-qr-modal').classList.remove('hidden');
 
-            // Chờ điện thoại Admin quét xong thì mới chạy tiếp các bước hiện QR Điểm danh
             rdb.ref('dynamic_attendance/sessions/' + code + '/adminLocation').on('value', snap => {
                 if (snap.exists()) {
                     document.getElementById('anchor-qr-modal').classList.add('hidden');
-                    finishActivation(code, title); // Hàm phụ để chạy nốt các bước còn lại
-                    showToast("Mỏ neo GPS đã kết nối!", "success");
+                    showToast("TÍN HIỆU GPS: ĐÃ SẴN SÀNG", "success");
+                    finishActivation(code, title);
+                    rdb.ref('dynamic_attendance/sessions/' + code + '/adminLocation').off();
                 }
             });
         } else {
-            // Nếu không bật GPS hoặc đang dùng điện thoại thì chạy bình thường
             finishActivation(code, title);
+            showToast("Kích hoạt thành công!", "success");
         }
 
     } catch (e) {
-        showToast("Lỗi kích hoạt!", "error");
+        console.error(e);
+        // Báo lỗi chi tiết để bạn dễ sửa
+        if (e.message.includes("PERMISSION_DENIED")) {
+            showToast("Lỗi: Server từ chối quyền truy cập (Rules chưa đúng)", "error");
+        } else {
+            showToast("Lỗi hệ thống: " + e.message, "error");
+        }
     }
 }
 
@@ -2548,9 +2557,6 @@ function finishActivationProcess(code, title) {
     btn.onclick = resetEventForm;
     btn.style.background = "linear-gradient(135deg, #10b981, #3b82f6)";
 }
-
-// Biến tạm để giữ bán kính nếu người dùng nhập trước khi kích hoạt
-let pendingRadius = 50; 
 
 async function saveRadiusSettings() {
     const radiusInput = document.getElementById('a-location-radius');
