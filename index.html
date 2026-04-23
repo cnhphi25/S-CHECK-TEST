@@ -2556,42 +2556,49 @@ async function saveRadiusSettings() {
     const radiusInput = document.getElementById('a-location-radius');
     const newRadius = parseInt(radiusInput.value);
 
-    // 1. Kiểm tra tính hợp lệ
+    // 1. Kiểm tra tính hợp lệ của con số
     if (isNaN(newRadius) || newRadius < 5) {
         showToast("Bán kính tối thiểu là 5m!", "error");
         radiusInput.value = pendingRadius; 
         return;
     }
 
-    // Cập nhật biến tạm
     pendingRadius = newRadius;
 
-    // 2. Kiểm tra xem đã kích hoạt sự kiện chưa
+    // 2. Nếu đã kích hoạt session
     if (currentSession && currentSession.code) {
-        // ĐÃ KÍCH HOẠT: Cập nhật trực tiếp lên Firebase
+        const btn = event.currentTarget;
+        const originalText = btn.innerHTML;
+        
         try {
+            // Cập nhật lên Firebase
             await rdb.ref('dynamic_attendance/sessions/' + currentSession.code).update({
                 locationRadius: newRadius
             });
             
             currentSession.locationRadius = newRadius;
-            showToast(`Đã áp dụng bán kính: ${newRadius}m`, "success");
+            showToast(`Đã cập nhật bán kính: ${newRadius}m`, "success");
             
             // Hiệu ứng nút bấm thành công
-            const btn = event.currentTarget;
             btn.innerHTML = "ĐÃ LƯU";
             btn.style.background = "#10b981";
-            setTimeout(() => { btn.innerHTML = "LƯU"; btn.style.background = ""; }, 1000);
+            setTimeout(() => { 
+                btn.innerHTML = "LƯU"; 
+                btn.style.background = ""; 
+            }, 1000);
 
         } catch (e) {
-            console.error(e);
-            showToast("Vui lòng bật tính năng bảo mật GPS!", "error");
+            console.error("Lỗi Firebase:", e);
+            // Hiện lỗi thật thay vì câu thông báo gây hiểu lầm
+            if (e.message.includes("PERMISSION_DENIED")) {
+                showToast("Lỗi: Bạn không có quyền sửa sự kiện này (Kiểm tra Firebase Rules)", "error");
+            } else {
+                showToast("Lỗi kết nối máy chủ!", "error");
+            }
         }
     } else {
-        // CHƯA KÍCH HOẠT: Chỉ lưu tạm vào máy, không báo lỗi máy chủ
-        showToast(`Đã ghi nhận bán kính ${newRadius}m. Sẽ áp dụng khi bạn bấm Kích hoạt.`, "info");
-        
-        // Hiệu ứng nút bấm thành công (Visual)
+        // Nếu chưa kích hoạt, chỉ lưu tạm vào máy
+        showToast(`Đã ghi nhận ${newRadius}m. Bấm Kích hoạt để áp dụng.`, "info");
         const btn = event.currentTarget;
         btn.innerHTML = "OK";
         setTimeout(() => { btn.innerHTML = "LƯU"; }, 1000);
