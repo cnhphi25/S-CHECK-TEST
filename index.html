@@ -594,7 +594,7 @@ input:focus {
 <!-- MODAL QR MỎ NEO (Dành cho PC) -->
 <div id="anchor-qr-modal" class="fixed inset-0 z-[12001] hidden flex items-center justify-center bg-black/95 backdrop-blur-2xl">
     <div class="glass p-10 rounded-[40px] max-w-md w-full text-center space-y-6 border-indigo-500/30">
-        <h3 class="text-xl font-black text-indigo-400 uppercase italic italic">CUNG CẤP GPS GỐC</h3>
+        <h3 class="text-xl font-black text-indigo-400 uppercase italic italic">CUNG CẤP GPS CHO HỆ THỐNG</h3>
         <p class="text-[10px] text-slate-400 font-bold uppercase leading-relaxed">Vui lòng dùng Điện thoại quét mã bên dưới để xác nhận vị trí Admin</p>
         <div id="anchor-qr-box" class="bg-white p-4 rounded-3xl inline-block"></div>
         <div class="flex items-center justify-center gap-2 text-emerald-400 animate-pulse">
@@ -643,21 +643,33 @@ input:focus {
     </div>
 </div>
 
-<!-- SUCCESS OVERLAY -->
+<!-- SUCCESS OVERLAY - Gọn gàng & Luxury -->
 <div id="success-overlay" class="fixed inset-0 z-[10000] hidden flex flex-col items-center justify-center bg-[#030712]/95 backdrop-blur-2xl">
-    <div class="absolute w-64 h-64 bg-emerald-500/20 rounded-full blur-[120px] animate-pulse"></div>
-    <div class="relative text-center space-y-10 animate-in zoom-in duration-700">
-        <div class="relative mx-auto w-32 h-32">
-            <div class="absolute inset-0 bg-emerald-500 rounded-full success-glow"></div>
-            <div class="absolute inset-2 bg-[#030712] rounded-full flex items-center justify-center border-2 border-emerald-500/30">
-                <svg class="w-16 h-16 text-emerald-500 shadow-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+    <!-- Hiệu ứng ánh sáng nền nhẹ hơn -->
+    <div class="absolute w-48 h-48 bg-emerald-500/10 rounded-full blur-[100px] animate-pulse"></div>
+    
+    <div class="relative text-center space-y-6 animate-in zoom-in duration-500">
+        <!-- Icon thành công nhỏ gọn hơn (w-24 thay vì w-32) -->
+        <div class="relative mx-auto w-24 h-24">
+            <div class="absolute inset-0 bg-emerald-500 rounded-full success-glow opacity-50"></div>
+            <div class="absolute inset-1.5 bg-[#030712] rounded-full flex items-center justify-center border-2 border-emerald-500/20">
+                <svg class="w-12 h-12 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path>
+                </svg>
             </div>
         </div>
-        <div class="space-y-2 fix-clipping">
-            <h2 class="text-8xl font-black italic tracking-tighter uppercase leading-none bg-gradient-to-b from-white via-white to-white/20 bg-clip-text text-transparent shiny-text">HOÀN TẤT</h2>
-            <p class="text-emerald-400 font-bold tracking-[0.5em] uppercase text-sm mt-4 opacity-90">Check-in Successful</p>
+
+        <div class="space-y-1 fix-clipping">
+            <!-- Cỡ chữ giảm xuống 5xl nhìn sang hơn -->
+            <h2 class="text-5xl font-black italic tracking-tighter uppercase leading-none bg-gradient-to-b from-white to-white/30 bg-clip-text text-transparent">HOÀN TẤT</h2>
+            <!-- Đã chuyển sang tiếng Việt -->
+            <p class="text-emerald-400 font-bold tracking-[0.3em] uppercase text-[10px] opacity-90">Điểm danh thành công</p>
         </div>
-        <p class="text-slate-400 text-lg font-medium">Thông tin của bạn đã được hệ thống ghi nhận</p>
+
+        <!-- Dòng chữ nhỏ tinh tế -->
+        <div class="bg-white/5 px-6 py-2 rounded-full border border-white/5">
+            <p class="text-slate-400 text-xs font-medium tracking-wide">Thông tin đã được hệ thống ghi nhận</p>
+        </div>
     </div>
 </div>
 
@@ -1105,7 +1117,7 @@ async function submitAttendance() {
     const time = new Date().toLocaleString('vi-VN');
     
     if (userSession && userSession.requireLocation && userSession.adminLocation) {
-        showToast("Đang xác thực khoảng cách...", "info");
+        showToast("Đang xác thực phạm vi điểm danh...", "info");
         try {
             const pos = await new Promise((res, rej) => 
                 navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: true })
@@ -1118,10 +1130,10 @@ async function submitAttendance() {
 
             const allowedRadius = Number(userSession.locationRadius) || 50;
             if (dist > allowedRadius) {
-                return showToast(`Bạn đang ở cách xa ${dist.toFixed(0)}m. Không thể điểm danh!`, "error");
+                return showToast(`Không thành công! Bạn đang ở cách vị trí yêu cầu ${dist.toFixed(0)}m.`, "error");
             }
         } catch (e) {
-            return showToast("Vui lòng bật GPS trên điện thoại!", "error");
+            return showToast(getGpsErrorMessage(e), "error"); // Hiện lỗi tiếng Việt khi SV không bật GPS
         }
     }
 
@@ -2390,32 +2402,54 @@ function getDistance(lat1, lon1, lat2, lon2) {
 // 4. LOGIC XỬ LÝ KHI BẬT CÔNG TẮC GPS (ADMIN)
 async function handleGpsToggle() {
     const toggle = document.getElementById('a-require-location');
-    if (!toggle.checked) return;
+    const radiusContainer = document.getElementById('radius-setting-container');
+    const isChecked = toggle.checked;
+
+    if (isChecked) {
+        radiusContainer.style.opacity = "1";
+        radiusContainer.style.pointerEvents = "auto";
+    } else {
+        radiusContainer.style.opacity = "0.5";
+        radiusContainer.style.pointerEvents = "none";
+        showToast("Đã tắt bảo mật GPS", "info");
+        return;
+    }
 
     if (adminDeviceType === 'mobile') {
-        // ... (Logic Mobile giữ nguyên của bạn) ...
+        showToast("Đang xác thực tọa độ hệ thống...", "info");
+        
+        navigator.geolocation.getCurrentPosition(async (pos) => {
+            const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+            if (currentSession && currentSession.code) {
+                await rdb.ref('dynamic_attendance/sessions/' + currentSession.code).update({
+                    adminLocation: coords,
+                    requireLocation: true
+                });
+                currentSession.adminLocation = coords;
+            }
+            showToast("TÍN HIỆU GPS: ĐÃ SẴN SÀNG", "success");
+        }, (err) => {
+            toggle.checked = false;
+            radiusContainer.style.opacity = "0.5";
+            showToast(getGpsErrorMessage(err), "error"); // Dùng hàm dịch tiếng Việt
+        }, { enableHighAccuracy: true });
+
     } else {
         if (!currentSession) {
             toggle.checked = false;
+            radiusContainer.style.opacity = "0.5";
             return showToast("Vui lòng 'Kích hoạt' sự kiện trước!", "error");
         }
-        
         const anchorUrl = window.location.origin + window.location.pathname + "?anchor=" + currentSession.code;
-        const qrSize = 300;
-        // Khi gạt nút GPS sang ON
-        document.getElementById('a-location-radius').disabled = false; 
-        document.getElementById('radius-setting-container').style.opacity = "1";
-        document.getElementById('anchor-qr-box').innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=${qrSize}x${qrSize}&data=${encodeURIComponent(anchorUrl)}">`;
+        document.getElementById('anchor-qr-box').innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(anchorUrl)}" class="rounded-xl">`;
         document.getElementById('anchor-qr-modal').classList.remove('hidden');
 
         rdb.ref('dynamic_attendance/sessions/' + currentSession.code + '/adminLocation').on('value', snap => {
             if (snap.exists()) {
                 currentSession.adminLocation = snap.val();
                 document.getElementById('anchor-qr-modal').classList.add('hidden');
-                showToast("Mỏ neo GPS đã kết nối thành công!", "success");
-                
-                // THÊM DÒNG NÀY: Để hiện QR điểm danh chính sau khi mỏ neo xong
-                finishActivationProcess(currentSession.code, currentSession.title);
+                showToast("TÍN HIỆU GPS: ĐÃ SẴN SÀNG", "success");
+                rdb.ref('dynamic_attendance/sessions/' + currentSession.code).update({ requireLocation: true });
             }
         });
     }
@@ -2510,6 +2544,19 @@ async function saveRadiusSettings() {
         const btn = event.currentTarget;
         btn.innerHTML = "OK";
         setTimeout(() => { btn.innerHTML = "LƯU"; }, 1000);
+    }
+}
+
+function getGpsErrorMessage(err) {
+    switch (err.code) {
+        case 1: // PERMISSION_DENIED
+            return "Bạn đã từ chối quyền truy cập vị trí. Vui lòng cho phép truy cập GPS trong cài đặt trình duyệt để tiếp tục.";
+        case 2: // POSITION_UNAVAILABLE
+            return "Không thể xác định tọa độ. Vui lòng kiểm tra lại kết nối mạng hoặc GPS trên thiết bị.";
+        case 3: // TIMEOUT
+            return "Quá thời gian lấy dữ liệu GPS. Vui lòng thử lại hoặc di chuyển ra vùng thoáng hơn.";
+        default:
+            return "Lỗi GPS không xác định. Vui lòng thử lại.";
     }
 }
 
