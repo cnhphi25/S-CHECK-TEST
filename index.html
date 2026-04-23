@@ -1048,7 +1048,7 @@ async function activateSession() {
             code: code, 
             title: title, 
             fields: fields, 
-            requireLocation: isGpsRequired, 
+            requireLocation: document.getElementById('a-require-location').checked, // Quan trọng dòng này
             locationRadius: pendingRadius, // Lấy từ biến toàn cục
             ts: Date.now(),
             ownerId: user.uid 
@@ -1121,45 +1121,49 @@ function finishActivation(code, title) {
 // 2. GỬI ĐIỂM DANH
 async function submitAttendance() {
     const vals = Array.from(document.querySelectorAll('.u-input')).map(i => i.value.trim());
-    if(vals.some(v => !v)) return showToast("Điền đủ thông tin!", "info");
+    if(vals.some(v => !v)) return showToast("Vui lòng điền đủ thông tin!", "info");
     
-    const time = new Date().toLocaleString('vi-VN');
-    
-    if (userSession && userSession.requireLocation && userSession.adminLocation) {
+    // --- BẮT ĐẦU KIỂM TRA GPS (CHỈ KHI ADMIN YÊU CẦU) ---
+    if (userSession && userSession.requireLocation === true) {
         showToast("Đang xác thực phạm vi điểm danh...", "info");
         try {
             const pos = await new Promise((res, rej) => 
-                navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: true })
+                navigator.geolocation.getCurrentPosition(res, rej, { 
+                    enableHighAccuracy: true,
+                    timeout: 7000 
+                })
             );
             
-            const dist = getDistance(
-                pos.coords.latitude, pos.coords.longitude,
-                userSession.adminLocation.lat, userSession.adminLocation.lng
-            );
+            if (userSession.adminLocation) {
+                const dist = getDistance(
+                    pos.coords.latitude, pos.coords.longitude,
+                    userSession.adminLocation.lat, userSession.adminLocation.lng
+                );
 
-            const allowedRadius = Number(userSession.locationRadius) || 50;
-            if (dist > allowedRadius) {
-                return showToast(`Không thành công! Bạn đang ở cách vị trí yêu cầu ${dist.toFixed(0)}m.`, "error");
+                const allowedRadius = Number(userSession.locationRadius) || 50;
+                if (dist > allowedRadius) {
+                    return showToast(`KHÔNG THÀNH CÔNG: Bạn đang đứng cách vị trí yêu cầu ${dist.toFixed(0)}m.`, "error");
+                }
             }
         } catch (e) {
-            return showToast(getGpsErrorMessage(e), "error"); // Hiện lỗi tiếng Việt khi SV không bật GPS
+            // Hiện lỗi tiếng Việt nếu sinh viên từ chối GPS hoặc GPS lỗi
+            return showToast(getGpsErrorMessage(e), "error");
         }
     }
+    // --- KẾT THÚC KIỂM TRA GPS ---
 
+    // TIẾN HÀNH GỬI DỮ LIỆU ĐIỂM DANH
+    const time = new Date().toLocaleString('vi-VN');
     try {
-        // Lưu vào Firebase
         await rdb.ref('dynamic_attendance/logs/' + userSession.code).push({ 
             values: vals, 
             time: time, 
             ts: Date.now() 
         });
-
-        // XÓA PHẦN FETCH GỬI SANG MASTER_SCRIPT_URL TẠI ĐÂY
-
         document.getElementById('success-overlay').style.display = 'flex';
         confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
     } catch (e) {
-        showToast("Lỗi hệ thống, vui lòng thử lại!", "error");
+        showToast("Lỗi hệ thống: Không thể gửi dữ liệu!", "error");
     }
 }
 
@@ -2454,48 +2458,73 @@ async function handleGpsToggle() {
     const radiusContainer = document.getElementById('radius-setting-container');
     const isChecked = toggle.checked;
 
+    // PHẦN 1: CẬP NHẬT GIAO DIỆN NGAY LẬP TỨC
     if (isChecked) {
         radiusContainer.style.opacity = "1";
         radiusContainer.style.pointerEvents = "auto";
+        // Nếu bật: Không return để chạy tiếp xuống phần lấy GPS bên dưới
     } else {
         radiusContainer.style.opacity = "0.5";
         radiusContainer.style.pointerEvents = "none";
-        showToast("Đã tắt bảo mật GPS", "info");
-        if (currentSession) rdb.ref('dynamic_attendance/sessions/' + currentSession.code).update({ requireLocation: false });
-        return;
+        showToast("CHẾ ĐỘ TỰ DO: ĐÃ TẮT BẢO MẬT GPS", "info");
+
+        // ĐỒNG BỘ SERVER: Nếu tắt GPS, báo cho Firebase để sinh viên không bị hỏi GPS nữa
+        if (currentSession && currentSession.code) {
+            await rdb.ref('dynamic_attendance/sessions/' + currentSession.code).update({
+                requireLocation: false
+            });
+            currentSession.requireLocation = false;
+        }
+        return; // Kết thúc hàm nếu là TẮT
     }
 
+    // PHẦN 2: XỬ LÝ THEO LOẠI THIẾT BỊ (PC HAY MOBILE)
     if (adminDeviceType === 'mobile') {
+        // --- TRƯỜNG HỢP ADMIN DÙNG ĐIỆN THOẠI ---
         showToast("Đang xác thực tọa độ hệ thống...", "info");
+
         navigator.geolocation.getCurrentPosition(async (pos) => {
-            const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+            const coords = { 
+                lat: pos.coords.latitude, 
+                lng: pos.coords.longitude,
+                ts: Date.now() 
+            };
+
+            // Lưu tọa độ trực tiếp vào Session đang chạy
             if (currentSession && currentSession.code) {
                 await rdb.ref('dynamic_attendance/sessions/' + currentSession.code).update({
                     adminLocation: coords,
                     requireLocation: true
                 });
                 currentSession.adminLocation = coords;
+                currentSession.requireLocation = true;
             }
             showToast("TÍN HIỆU GPS: ĐÃ SẴN SÀNG", "success");
         }, (err) => {
+            // Nếu lỗi GPS trên điện thoại: Tự gạt nút về OFF
             toggle.checked = false;
             radiusContainer.style.opacity = "0.5";
+            radiusContainer.style.pointerEvents = "none";
             showToast(getGpsErrorMessage(err), "error");
         }, { enableHighAccuracy: true });
 
     } else {
-        // TRƯỜNG HỢP PC: HIỆN MODAL QR
+        // --- TRƯỜNG HỢP ADMIN DÙNG MÁY TÍNH (PC) ---
         if (!currentSession) {
             toggle.checked = false;
             radiusContainer.style.opacity = "0.5";
-            return showToast("Vui lòng 'Kích hoạt' sự kiện trước!", "error");
+            return showToast("Vui lòng 'Kích hoạt' sự kiện trước khi bật GPS!", "error");
         }
 
+        // Hiện Modal QR để Admin dùng điện thoại quét (Mỏ neo)
         const anchorUrl = window.location.origin + window.location.pathname + "?anchor=" + currentSession.code;
-        document.getElementById('anchor-qr-box').innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(anchorUrl)}" style="border-radius:15px;">`;
+        document.getElementById('anchor-qr-box').innerHTML = `
+            <div style="background:white; padding:15px; border-radius:20px; box-shadow:inset 0 0 10px rgba(0,0,0,0.1);">
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(anchorUrl)}" style="display:block;">
+            </div>`;
         document.getElementById('anchor-qr-modal').classList.remove('hidden');
 
-        // LẮNG NGHE TÍN HIỆU TỪ ĐIỆN THOẠI
+        // LẮNG NGHE TÍN HIỆU TỪ ĐIỆN THOẠI GỬI LÊN FIREBASE
         const anchorRef = rdb.ref('dynamic_attendance/sessions/' + currentSession.code + '/adminLocation');
         anchorRef.on('value', snap => {
             if (snap.exists()) {
@@ -2503,12 +2532,13 @@ async function handleGpsToggle() {
                 document.getElementById('anchor-qr-modal').classList.add('hidden');
                 showToast("TÍN HIỆU GPS: ĐÃ SẴN SÀNG", "success");
                 
-                // Tự động bật chế độ yêu cầu GPS trên server luôn
+                // Sau khi điện thoại Admin đã chốt vị trí, kích hoạt chế độ bắt buộc GPS cho người quét
                 rdb.ref('dynamic_attendance/sessions/' + currentSession.code).update({ 
                     requireLocation: true 
                 });
-                
-                // Ngắt lắng nghe sau khi đã nhận được để tiết kiệm tài nguyên
+                currentSession.requireLocation = true;
+
+                // Ngắt kết nối lắng nghe để tránh lặp dữ liệu
                 anchorRef.off();
             }
         });
