@@ -2355,23 +2355,55 @@ window.onload = () => {
     const room = params.get('room');
     const anchor = params.get('anchor');
     
-    // Nếu là Admin đi xác nhận mỏ neo GPS
+    // TRƯỜNG HỢP: ĐIỆN THOẠI QUÉT MÃ CẤU HÌNH GPS
     if (anchor) {
-        handleAnchorFlow(anchor);
-        return;
+        // Thay đổi giao diện điện thoại ngay lập tức để người dùng biết hệ thống đang chạy
+        document.body.innerHTML = `
+            <div id="anchor-processing" style="background:#030712; height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; color:white; font-family:'Plus Jakarta Sans',sans-serif; text-align:center; padding:20px;">
+                <div class="radar-container" style="width:200px; height:200px; margin-bottom:30px;">
+                    <div class="radar-beam" style="animation: radar-beam 2s linear infinite;"></div>
+                    <div class="radar-pulse" style="animation: radar-pulse 2s infinite;"></div>
+                </div>
+                <h2 style="color:#6366f1; text-transform:uppercase; letter-spacing:3px; font-size:18px;">Đang xác thực tọa độ...</h2>
+                <p style="color:#64748b; font-size:12px; margin-top:10px;">Vui lòng giữ nguyên màn hình và bấm 'Cho phép' nếu có yêu cầu.</p>
+            </div>`;
+
+        navigator.geolocation.getCurrentPosition(async (pos) => {
+            try {
+                // Gửi tọa độ lên Firebase
+                await rdb.ref('dynamic_attendance/sessions/' + anchor + '/adminLocation').set({
+                    lat: pos.coords.latitude,
+                    lng: pos.coords.longitude,
+                    ts: Date.now() // Thêm timestamp để máy tính nhận diện dữ liệu mới nhất
+                });
+
+                // Hiện màn hình thành công trên điện thoại
+                const container = document.getElementById('anchor-processing');
+                container.innerHTML = `
+                    <div style="animation: zoomIn 0.5s ease forwards;">
+                        <div style="width:80px; height:80px; background:#10b981; border-radius:50%; display:flex; items-center; justify-content:center; margin:0 auto 20px;">
+                            <svg style="width:40px; color:white;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+                        </div>
+                        <h2 style="color:#10b981; text-transform:uppercase; letter-spacing:2px;">XÁC THỰC HOÀN TẤT</h2>
+                        <p style="color:#64748b; font-size:13px; margin-top:10px;">Tọa độ đã được gửi tới Máy tính.<br>Bạn có thể đóng trình duyệt này.</p>
+                    </div>`;
+            } catch (e) {
+                alert("Lỗi kết nối server: " + e.message);
+            }
+        }, (err) => {
+            alert("Lỗi GPS: " + getGpsErrorMessage(err));
+        }, { enableHighAccuracy: true, timeout: 10000 });
+        return; // Dừng các logic khác
     }
 
-    // Nếu là Người dùng quét mã (Attendee)
+    // Logic cũ cho Room (Người quét điểm danh)
     if (room) {
-        // Hiện radar ngay cho luxury rồi vào form điểm danh
         const loader = document.getElementById('initial-loader');
-        loader.classList.remove('hidden'); 
-        checkCode(room); 
-    } 
-    // Nếu là Admin vào quản lý
-    else {
-        // HIỆN BẢNG CHỌN THIẾT BỊ ĐẦU TIÊN
-        document.getElementById('device-selector-modal').classList.remove('hidden');
+        if(loader) loader.classList.remove('hidden');
+        checkCode(room);
+    } else {
+        const devModal = document.getElementById('device-selector-modal');
+        if(devModal) devModal.classList.remove('hidden');
     }
 };
 
@@ -2412,12 +2444,12 @@ async function handleGpsToggle() {
         radiusContainer.style.opacity = "0.5";
         radiusContainer.style.pointerEvents = "none";
         showToast("Đã tắt bảo mật GPS", "info");
+        if (currentSession) rdb.ref('dynamic_attendance/sessions/' + currentSession.code).update({ requireLocation: false });
         return;
     }
 
     if (adminDeviceType === 'mobile') {
         showToast("Đang xác thực tọa độ hệ thống...", "info");
-        
         navigator.geolocation.getCurrentPosition(async (pos) => {
             const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
             if (currentSession && currentSession.code) {
@@ -2431,25 +2463,36 @@ async function handleGpsToggle() {
         }, (err) => {
             toggle.checked = false;
             radiusContainer.style.opacity = "0.5";
-            showToast(getGpsErrorMessage(err), "error"); // Dùng hàm dịch tiếng Việt
+            showToast(getGpsErrorMessage(err), "error");
         }, { enableHighAccuracy: true });
 
     } else {
+        // TRƯỜNG HỢP PC: HIỆN MODAL QR
         if (!currentSession) {
             toggle.checked = false;
             radiusContainer.style.opacity = "0.5";
             return showToast("Vui lòng 'Kích hoạt' sự kiện trước!", "error");
         }
+
         const anchorUrl = window.location.origin + window.location.pathname + "?anchor=" + currentSession.code;
-        document.getElementById('anchor-qr-box').innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(anchorUrl)}" class="rounded-xl">`;
+        document.getElementById('anchor-qr-box').innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(anchorUrl)}" style="border-radius:15px;">`;
         document.getElementById('anchor-qr-modal').classList.remove('hidden');
 
-        rdb.ref('dynamic_attendance/sessions/' + currentSession.code + '/adminLocation').on('value', snap => {
+        // LẮNG NGHE TÍN HIỆU TỪ ĐIỆN THOẠI
+        const anchorRef = rdb.ref('dynamic_attendance/sessions/' + currentSession.code + '/adminLocation');
+        anchorRef.on('value', snap => {
             if (snap.exists()) {
                 currentSession.adminLocation = snap.val();
                 document.getElementById('anchor-qr-modal').classList.add('hidden');
                 showToast("TÍN HIỆU GPS: ĐÃ SẴN SÀNG", "success");
-                rdb.ref('dynamic_attendance/sessions/' + currentSession.code).update({ requireLocation: true });
+                
+                // Tự động bật chế độ yêu cầu GPS trên server luôn
+                rdb.ref('dynamic_attendance/sessions/' + currentSession.code).update({ 
+                    requireLocation: true 
+                });
+                
+                // Ngắt lắng nghe sau khi đã nhận được để tiết kiệm tài nguyên
+                anchorRef.off();
             }
         });
     }
