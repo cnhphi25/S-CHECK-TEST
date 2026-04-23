@@ -235,9 +235,29 @@ table th:first-child, table td:first-child {
 
         [v-cloak] { display: none; }
         #success-overlay { position: fixed !important; inset: 0; z-index: 10000; display: none; align-items: center; justify-content: center; background: rgba(3, 7, 18, 0.95); backdrop-filter: blur(20px); overflow: hidden; }
-        #toast-container { position: fixed; top: 20px; right: 20px; z-index: 10002; display: flex; flex-direction: column; gap: 10px; }
-        .toast-item { animation: toastIn 0.5s cubic-bezier(0.18, 0.89, 0.32, 1.28) forwards; min-width: 300px; }
-        @keyframes toastIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        #toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            /* Chỉ số z-index cực cao để đè lên mọi Modal */
+            z-index: 999999 !important; 
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            pointer-events: none; /* Cho phép click xuyên qua vùng trống của container */
+            max-width: 90vw;
+        }
+        .toast-item {
+            pointer-events: auto; /* Riêng thông báo thì vẫn nhận tương tác nếu cần */
+            animation: toastIn 0.5s cubic-bezier(0.18, 0.89, 0.32, 1.28) forwards;
+            min-width: 280px;
+            /* Hiệu ứng đổ bóng mạnh để tách biệt khỏi nền modal */
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.1);
+        }
+        @keyframes toastIn { 
+            from { transform: translateX(120%); opacity: 0; } 
+            to { transform: translateX(0); opacity: 1; } 
+        }    
         .toast-out { animation: toastOut 0.5s ease forwards; }
         @keyframes toastOut { to { transform: translateX(100%); opacity: 0; } }
         .qr-backdrop { background-color: #000000 !important; backdrop-filter: blur(100px) !important; }
@@ -511,35 +531,11 @@ table th:first-child, table td:first-child {
             </div>
             <div class="space-y-4">
                 <label class="text-[10px] font-bold text-emerald-400 uppercase">Tên sự kiện của bạn</label>
-                <input type="text" id="a-title" placeholder="VÍ DỤ: HỌP LỚP 12A1" class="w-full p-4 rounded-xl font-bold bg-white/5 border border-white/10">
+                <input type="text" id="a-title" placeholder="VÍ DỤ: SINH HOẠT CLB ..." class="w-full p-4 rounded-xl font-bold bg-white/5 border border-white/10">
                 <div id="admin-fields-list" class="space-y-2 bg-white/5 p-4 rounded-2xl max-h-[30vh] overflow-y-auto"></div>
                 <button onclick="addField()" class="w-full py-2 border border-white/10 rounded-xl text-[10px] font-black text-slate-400">+ Thêm</button>
-                <button onclick="activateSession()" class="btn-glow w-full py-4 rounded-2xl text-white font-black uppercase text-xs">Kích hoạt</button>
+                <button id="btn-session-action" onclick="activateSession()" class="btn-glow w-full py-4 rounded-2xl text-white font-black uppercase text-xs">Kích hoạt</button>
             </div>
-        </div>
-        <!-- NÚT BẬT CHỐNG ĐIỂM DANH HỘ -->
-        <div class="space-y-4 pt-4 border-t border-white/5">
-            <div class="flex items-center justify-between">
-                <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Yêu cầu Vị trí (GPS)</label>
-                <label class="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" id="a-require-location" class="sr-only peer" onchange="notifyLocationToggle()">
-                    <div class="w-10 h-5 bg-slate-700 rounded-full peer peer-checked:bg-blue-600 transition-all after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-5 shadow-inner"></div>
-                </label>
-            </div>
-
-            <!-- THÊM ĐOẠN NÀY VÀO NGAY DƯỚI -->
-            <div id="radius-setting" class="flex items-center justify-between mt-2 opacity-50 transition-opacity">
-                <span class="text-[9px] font-bold text-slate-500 uppercase">Bán kính (m):</span>
-                <div class="flex gap-1">
-                    <input type="number" id="a-location-radius" value="50" oninput="updateGpsHint()" min="5" max="5000" 
-                        class="w-16 p-1 text-center rounded-lg bg-white/5 border border-white/10 text-[10px] font-bold text-indigo-400 focus:border-indigo-500 outline-none">
-                    <!-- NÚT LƯU MỚI -->
-                    <button onclick="updateLiveSettings()" class="bg-indigo-600/20 hover:bg-indigo-600 text-indigo-400 hover:text-white text-[8px] px-2 py-1 rounded-lg font-black transition-all border border-indigo-500/30">
-                        LƯU
-                    </button>
-                </div>
-            </div>
-            <p id="gps-hint" class="text-[9px] text-slate-500 italic">- Chỉ cho phép điểm danh khi ở gần bạn (50m) -</p>
         </div>
 <!-- QR CODE SECTION -->
 <div id="qr-container" class="glass p-6 lg:p-8 rounded-3xl text-center hidden border border-indigo-500/20 relative overflow-hidden group">
@@ -734,47 +730,34 @@ table th:first-child, table td:first-child {
 </div>
 
 <script>
- // --- BẢO MẬT: CHỐNG F12 VÀ KIỂM TRA PHẦN TỬ (ĐÃ FIX CHO MOBILE) ---
+// --- BẢO MẬT TINH CHỈNH: CHẶN PHÍM TẮT VÀ CHUỘT PHẢI ---
 (function() {
     function destroyWeb() {
         document.documentElement.innerHTML = "";
         window.location.replace("about:blank");
     }
 
-    // 1. Chặn phím tắt trên Desktop (F12, Ctrl+U, Ctrl+Shift+I...)
+    // 1. Chặn phím tắt (F12, Ctrl+Shift+I, Ctrl+U...)
     window.addEventListener('keydown', function(e) {
         if (
-            e.keyCode === 123 || 
-            (e.ctrlKey && e.shiftKey && e.keyCode === 73) || 
-            (e.ctrlKey && e.shiftKey && e.keyCode === 74) || 
-            (e.ctrlKey && e.shiftKey && e.keyCode === 67) || 
-            (e.ctrlKey && e.keyCode === 85)
+            e.keyCode === 123 || // F12
+            (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74 || e.keyCode === 67)) || // Ctrl+Shift+I/J/C
+            (e.ctrlKey && e.keyCode === 85) // Ctrl+U (Xem nguồn trang)
         ) {
             e.preventDefault();
-            destroyWeb();
+            // showToast("Hành động bị chặn vì lý do bảo mật!", "error"); // Tùy chọn hiện thông báo thay vì hủy web
             return false;
         }
-    });
+    }, true);
 
     // 2. Chặn chuột phải
-    document.addEventListener('contextmenu', function(e) {
-        e.preventDefault();
-    });
+    document.addEventListener('contextmenu', e => e.preventDefault());
 
-    // 3. Chỉ kiểm tra thay đổi kích thước trên Desktop
-    // Loại bỏ kiểm tra Chiều cao (Height) vì thanh URL Mobile và Bàn phím ảo sẽ gây lỗi
-    var threshold = 160;
-    window.addEventListener('resize', function() {
-        // Kiểm tra xem có phải Mobile không (dựa trên UserAgent)
-        var isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        
-        if (!isMobile) {
-            // Trên Desktop, chỉ chặn nếu chiều rộng bị thu hẹp bất thường (mở Console bên cạnh)
-            if (window.outerWidth - window.innerWidth > threshold) {
-                destroyWeb();
-            }
-        }
-    });
+    // 3. Chặn kéo thả ảnh (Tránh kéo mã QR ra ngoài để soi)
+    document.addEventListener('dragstart', e => e.preventDefault());
+
+    // 4. (Tùy chọn) Chống bôi đen văn bản để copy
+    // document.addEventListener('selectstart', e => e.preventDefault());
 })();
 // --- CONFIG FIREBASE ---
 const firebaseConfig = {
@@ -816,112 +799,71 @@ function createSlug(str) {
 // 1. KHỞI TẠO SỰ KIỆN & TẠO SHEET (GET)
 async function activateSession() {
     const title = document.getElementById('a-title').value.trim();
-    const radius = parseInt(document.getElementById('a-location-radius').value) || 50; 
     const fields = Array.from(document.querySelectorAll('.field-input')).map(i => i.value.trim()).filter(v => v);
     
     if(!title) return showToast("Vui lòng nhập tên sự kiện!", "info");
     
-    // CẤU HÌNH GPS
-    const isRequired = document.getElementById('a-require-location').checked;
-    let adminPos = null;
-
-    if (isRequired) {
-        showToast("Đang xác thực tọa độ quản trị...", "info");
-        try {
-            const pos = await new Promise((res, rej) => 
-                navigator.geolocation.getCurrentPosition(res, rej, { 
-                    enableHighAccuracy: true,
-                    timeout: 5000 
-                })
-            );
-            adminPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        } catch (e) {
-            // Nếu lỗi GPS, thông báo nhưng vẫn tiếp tục để hiện QR
-            showToast("⚠️ GPS lỗi! Đã tắt chức năng chống điểm danh hộ.", "error");
-            document.getElementById('a-require-location').checked = false;
-        }
-    }
-    
     const code = createSlug(title); 
-    const sessionData = { 
-        code: code, 
-        title: title, 
-        fields: fields, 
-        requireLocation: document.getElementById('a-require-location').checked, 
-        locationRadius: radius, // THÊM DÒNG NÀY VÀO ĐỐI TƯỢNG LƯU TRỮ
-        adminLocation: adminPos,             
-        ts: Date.now() 
-    }; 
+    showToast("Đang kích hoạt hệ thống...", "info");
 
     try {
+        // --- GIỮ NGUYÊN LOGIC CŨ CỦA BẠN ---
+        const sessionData = { 
+            code: code, 
+            title: title, 
+            fields: fields, 
+            ts: Date.now() 
+        }; 
+        
         await rdb.ref('dynamic_attendance/sessions/' + code).set(sessionData);
         currentSession = sessionData;
         
-        // --- TẠO MÃ QR (Đã sửa URL API ổn định hơn) ---
+        showToast("Đã kích hoạt thành công!", "success");
+
         let roomUrl = window.location.origin + window.location.pathname + "?room=" + code;
-        lastQRUrl = `https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(roomUrl)}`;
+        lastQRUrl = `https://api.qrserver.com/v1/create-qr-code/?size=1000x1000&data=${encodeURIComponent(roomUrl)}`;
         
         document.getElementById('qr-container').classList.remove('hidden');
         document.getElementById('qr-code').innerHTML = `
             <div class="bg-white p-4 rounded-[2rem] flex flex-col items-center">
-                <img src="${lastQRUrl}" class="w-48 h-48 rounded-xl shadow-inner">
+                <img src="${lastQRUrl}" class="w-48 h-48 rounded-xl">
                 <div class="mt-4 text-center">
                     <h4 class="text-black text-xl font-black italic uppercase tracking-tighter leading-none">QUÉT MÃ ĐIỂM DANH</h4>
                     <p class="text-slate-400 text-[7px] font-bold uppercase tracking-[3px] mt-1.5">S-CHECK PRO SYSTEM</p>
                 </div>
             </div>`;
         
-        listenLogs(code);
-        showToast("Hệ thống đã sẵn sàng!", "success");
+        listenLogs(code); // Bắt đầu lắng nghe danh sách điểm danh
+
+        // --- PHẦN THÊM MỚI: BIẾN ĐỔI NÚT ---
+        const btn = document.getElementById('btn-session-action');
+        if (btn) {
+            btn.innerText = "Tạo sự kiện mới";
+            btn.onclick = resetEventForm; // Gán hàm reset khi click
+            btn.style.background = "linear-gradient(135deg, #10b981, #3b82f6)"; // Đổi màu sang xanh lá (Success)
+        }
+
     } catch (e) {
-        showToast("Lỗi kết nối Firebase!", "error");
+        showToast("Lỗi khi lưu dữ liệu vào hệ thống!", "error");
     }
 }
 
-// Thêm hàm tính khoảng cách vào bất cứ đâu trong script
-function getDistance(lat1, lon1, lat2, lon2) {
-    const R = 6371e3; // Mét
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
-}
-
+// 2. GỬI ĐIỂM DANH
 async function submitAttendance() {
     const vals = Array.from(document.querySelectorAll('.u-input')).map(i => i.value.trim());
     if(vals.some(v => !v)) return showToast("Điền đủ thông tin!", "info");
     
-    // LOGIC KIỂM TRA GPS
-    if (userSession && userSession.requireLocation && userSession.adminLocation) {
-        showToast("Xác thực vị trí hiện diện...", "info");
-        try {
-            const position = await new Promise((res, rej) => 
-                navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: true })
-            );
-            const dist = getDistance(
-                position.coords.latitude, position.coords.longitude,
-                userSession.adminLocation.lat, userSession.adminLocation.lng
-            );
-
-            // Ép kiểu về Number để so sánh chính xác
-            const allowedRadius = Number(userSession.locationRadius) || 50; 
-            showToast(`Khoảng cách tính được: ${dist.toFixed(2)}m (Cho phép: ${allowedRadius}m)`, "info");
-            if (dist > allowedRadius) { 
-                return showToast(`Thất bại! Bạn ở cách ${dist.toFixed(1)}m`, "error");
-            }
-        } catch (error) {
-            return showToast("Vui lòng bật định vị để điểm danh!", "error");
-        }
-    }
-
     const time = new Date().toLocaleString('vi-VN');
     
     try {
+        // Lưu vào Firebase
         await rdb.ref('dynamic_attendance/logs/' + userSession.code).push({ 
             values: vals, 
             time: time, 
             ts: Date.now() 
         });
+
+        // XÓA PHẦN FETCH GỬI SANG MASTER_SCRIPT_URL TẠI ĐÂY
 
         document.getElementById('success-overlay').style.display = 'flex';
         confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
@@ -1027,18 +969,29 @@ function checkCode(forced) {
 
         // GIAI ĐOẠN 3: Hoàn tất và hiện Form (Tổng cộng 2 giây)
         setTimeout(() => {
-            // Render Form dữ liệu
+            // Render Form dữ liệu với tiêu đề mục rõ ràng
             document.getElementById('u-step-2').classList.remove('hidden');
             document.getElementById('u-title').innerText = userSession.title;
+            
             document.getElementById('u-form').innerHTML = userSession.fields.map(f => `
-                <div class="space-y-1">
-                    <label class="text-[10px] font-black text-slate-500 uppercase ml-4">${f}</label>
-                    <input type="text" class="u-input w-full p-5 rounded-[25px] font-bold text-lg bg-white/5" placeholder="Nhập ${f}...">
+                <div class="space-y-2 mb-5 group">
+                    <!-- Tên mục phía trên -->
+                    <div class="flex items-center gap-2 ml-4">
+                        <div class="w-1.5 h-1.5 bg-indigo-500 rounded-full group-focus-within:shadow-[0_0_8px_rgba(99,102,241,1)] transition-all"></div>
+                        <label class="text-[11px] font-black text-indigo-400 uppercase tracking-[2px]">
+                            ${f}
+                        </label>
+                    </div>
+                    
+                    <!-- Nội dung nhập cho người dùng -->
+                    <input type="text" 
+                        class="u-input w-full p-5 rounded-[25px] font-bold text-lg bg-white/5 border border-white/5 focus:border-indigo-500/30 focus:bg-white/10 outline-none transition-all placeholder:text-white/10" 
+                        placeholder="Nhập nội dung ${f} tại đây...">
                 </div>`).join('');
             
-            // Tắt Radar
+            // Tắt Radar loading
             hideInitialLoader();
-        }, 2000); 
+        }, 2000);
     });
 }
 
@@ -1245,11 +1198,32 @@ function addField(val = "") {
 function showToast(msg, type = 'info') {
     const container = document.getElementById('toast-container');
     const toast = document.createElement('div');
-    const colors = { success: 'border-emerald-500/50 text-emerald-400', error: 'border-red-500/50 text-red-400', info: 'border-indigo-500/50 text-indigo-400' };
-    toast.className = `toast-item glass p-4 rounded-2xl border-l-4 ${colors[type]} shadow-2xl`;
-    toast.innerHTML = `<p class="text-sm font-bold text-white">${msg}</p>`;
+    
+    // Cấu hình màu sắc rực rỡ hơn để nổi bật trên nền modal tối
+    const styles = {
+        success: { border: 'border-emerald-500', bg: 'bg-emerald-500/20', icon: 'fa-circle-check', text: 'text-emerald-400' },
+        error: { border: 'border-red-500', bg: 'bg-red-500/20', icon: 'fa-circle-xmark', text: 'text-red-400' },
+        info: { border: 'border-indigo-500', bg: 'bg-indigo-500/20', icon: 'fa-circle-info', text: 'text-indigo-400' }
+    };
+    
+    const s = styles[type] || styles.info;
+    
+    // Cấu trúc HTML của Toast mới
+    toast.className = `toast-item glass p-4 rounded-2xl border-l-4 ${s.border} ${s.bg} backdrop-blur-xl`;
+    toast.innerHTML = `
+        <div class="flex items-center gap-3">
+            <i class="fa-solid ${s.icon} ${s.text} text-lg"></i>
+            <p class="text-xs font-black uppercase tracking-wider text-white">${msg}</p>
+        </div>
+    `;
+    
     container.appendChild(toast);
-    setTimeout(() => { toast.classList.add('toast-out'); setTimeout(() => toast.remove(), 500); }, 4000);
+    
+    // Tự động xóa sau 4 giây
+    setTimeout(() => { 
+        toast.classList.add('toast-out'); 
+        setTimeout(() => toast.remove(), 500); 
+    }, 4000);
 }
 
 function showConfirm(msg, callback) {
@@ -1382,9 +1356,20 @@ function closeConfirm(res) {
 
 function zoomQR() {
     const overlay = document.getElementById('qr-zoom-overlay');
-    document.getElementById('qr-zoom-content').innerHTML = `<img src="${lastQRUrl}" class="w-[85vmin] h-[85vmin] object-contain">`;
-    overlay.classList.remove('hidden'); overlay.classList.add('flex');
-    if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen();
+    const content = document.getElementById('qr-zoom-content');
+    
+    // Đưa ảnh vào với độ sắc nét cao nhất
+    content.innerHTML = `<img src="${lastQRUrl}" class="w-[90vmin] h-[90vmin] object-contain shadow-2xl rounded-xl">`;
+    
+    overlay.classList.remove('hidden');
+    overlay.classList.add('flex');
+
+    // Kích hoạt Fullscreen cho overlay
+    if (overlay.requestFullscreen) {
+        overlay.requestFullscreen();
+    } else if (overlay.webkitRequestFullscreen) {
+        overlay.webkitRequestFullscreen();
+    }
 }
 
 async function downloadQR() {
@@ -1454,8 +1439,18 @@ async function downloadQR() {
 }
 
 function closeQRZoom() {
-    document.getElementById('qr-zoom-overlay').classList.add('hidden');
-    if (document.fullscreenElement) document.exitFullscreen();
+    const overlay = document.getElementById('qr-zoom-overlay');
+    overlay.classList.add('hidden');
+    overlay.classList.remove('flex');
+    
+    // Thoát Fullscreen nếu đang bật
+    if (document.fullscreenElement || document.webkitFullscreenElement) {
+        if (document.exitFullscreen) {
+            document.exitFullscreen();
+        } else if (document.webkitExitFullscreen) {
+            document.webkitExitFullscreen();
+        }
+    }
 }
 
 function handleFullscreenChange() {
@@ -1463,7 +1458,12 @@ function handleFullscreenChange() {
         document.getElementById('qr-zoom-overlay').classList.add('hidden');
     }
 }
-document.addEventListener('fullscreenchange', handleFullscreenChange);
+document.addEventListener('fullscreenchange', () => {
+    if (!document.fullscreenElement) {
+        const overlay = document.getElementById('qr-zoom-overlay');
+        overlay.classList.add('hidden');
+    }
+});
 document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
 
 document.addEventListener('keydown', (e) => { 
@@ -1599,30 +1599,31 @@ function renderHistoryItems(items) {
     const listContainer = document.getElementById('history-list');
     listContainer.innerHTML = items.map(item => `
         <div class="history-item glass p-4 lg:p-5 rounded-2xl border border-white/5 hover:border-indigo-500/30 transition-all group">
-            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <!-- THÔNG TIN SỰ KIỆN -->
-                <div class="space-y-1">
-                    <h4 class="font-black text-sm lg:text-base text-white uppercase group-hover:text-indigo-400 transition-colors tracking-tight">${item.title}</h4>
-                    <div class="flex items-center gap-2 text-slate-600">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                
+                <!-- THÔNG TIN SỰ KIỆN: Thêm giới hạn dòng để không vỡ giao diện -->
+                <div class="space-y-1 flex-1 min-w-0 w-full">
+                    <h4 class="font-black text-sm lg:text-base text-white uppercase group-hover:text-indigo-400 transition-colors tracking-tight truncate-2-lines">
+                        ${item.title}
+                    </h4>
+                    <div class="flex items-center gap-2 text-slate-500">
                         <i class="fa-regular fa-calendar-check text-[10px]"></i>
                         <p class="text-[10px] font-bold">${new Date(item.ts).toLocaleString('vi-VN')}</p>
                     </div>
                 </div>
 
-                <!-- CÁC NÚT THAO TÁC DÀI -->
-                <div class="flex flex-wrap gap-2 w-full sm:w-auto">
-                    <!-- NÚT XUẤT EXCEL DÀI -->
+                <!-- CÁC NÚT THAO TÁC: ÉP NẰM NGANG TRÊN PC -->
+                <div class="flex flex-row gap-2 w-full md:w-auto shrink-0">
                     <button onclick="exportSpecificSession('${item.code}')" 
-                            class="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-500/10 text-emerald-500 rounded-xl hover:bg-emerald-500 hover:text-white transition-all shadow-sm border border-emerald-500/20">
+                            class="flex-1 md:flex-none flex items-center justify-center gap-2 px-3 py-2.5 bg-emerald-500/10 text-emerald-500 rounded-xl hover:bg-emerald-500 hover:text-white transition-all border border-emerald-500/20">
                         <i class="fa-solid fa-file-excel text-xs"></i>
-                        <span class="text-[10px] font-black uppercase whitespace-nowrap tracking-wider">Xuất File Excel</span>
+                        <span class="text-[10px] font-black uppercase whitespace-nowrap">Xuất Excel</span>
                     </button>
 
-                    <!-- NÚT XEM BÁO CÁO DÀI -->
                     <button onclick="restoreSession('${item.code}')" 
-                            class="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-500/10 text-indigo-500 rounded-xl hover:bg-indigo-500 hover:text-white transition-all shadow-sm border border-indigo-500/20">
+                            class="flex-1 md:flex-none flex items-center justify-center gap-2 px-3 py-2.5 bg-indigo-500/10 text-indigo-500 rounded-xl hover:bg-indigo-500 hover:text-white transition-all border border-indigo-500/20">
                         <i class="fa-solid fa-chart-column text-xs"></i>
-                        <span class="text-[10px] font-black uppercase whitespace-nowrap tracking-wider">Xem Báo Cáo</span>
+                        <span class="text-[10px] font-black uppercase whitespace-nowrap">Báo cáo</span>
                     </button>
                 </div>
             </div>
@@ -1645,33 +1646,77 @@ function closeHistory() {
     document.getElementById('history-modal').classList.add('hidden');
 }
 
-// Hàm khôi phục lại phiên làm việc cũ để xem báo cáo trực tiếp
+// Hàm khôi phục lại phiên làm việc cũ để xem báo cáo và hiện lại thông tin cấu hình
 async function restoreSession(code) {
-    showToast("Đang tải dữ liệu...", "info");
+    showToast("Đang khôi phục phiên...", "info");
     const snap = await rdb.ref('dynamic_attendance/sessions/' + code).once('value');
+    
     if (snap.exists()) {
         currentSession = snap.val();
+
+        // 1. Cập nhật lại Tên sự kiện ở cột trái (Tạo sự kiện)
+        document.getElementById('a-title').value = currentSession.title;
+
+        // 2. Cập nhật lại danh sách các ô nhập thông tin (Fields)
+        const fieldsList = document.getElementById('admin-fields-list');
+        fieldsList.innerHTML = ""; // Xóa các ô hiện tại
+        
+        if (currentSession.fields && currentSession.fields.length > 0) {
+            currentSession.fields.forEach(fieldName => {
+                addField(fieldName); // Gọi hàm addField có sẵn để tạo lại các ô input
+            });
+        }
+
+        // 3. Cập nhật tiêu đề bảng báo cáo
         document.getElementById('report-title').innerText = currentSession.title;
         
-        // Tạo lại QR khi khôi phục
+        // 4. Hiển thị lại mã QR tương ứng
         let roomUrl = window.location.origin + window.location.pathname + "?room=" + code;
-        lastQRUrl = `https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${encodeURIComponent(roomUrl)}`;
+        lastQRUrl = `https://api.qrserver.com/v1/create-qr-code/?size=1000x1000&data=${encodeURIComponent(roomUrl)}`;
         
-        document.getElementById('display-room-code').innerText = "MÃ: " + code.toUpperCase();
         document.getElementById('qr-container').classList.remove('hidden');
         document.getElementById('qr-code').innerHTML = `
             <div class="bg-white p-4 rounded-[2rem] flex flex-col items-center">
-                <img src="${lastQRUrl}" class="w-48 h-48 rounded-xl shadow-lg">
+                <img src="${lastQRUrl}" class="w-48 h-48 rounded-xl">
                 <div class="mt-4 text-center">
                     <h4 class="text-black text-xl font-black italic uppercase tracking-tighter leading-none">QUÉT MÃ ĐIỂM DANH</h4>
                     <p class="text-slate-400 text-[7px] font-bold uppercase tracking-[3px] mt-1.5">S-CHECK PRO SYSTEM</p>
                 </div>
             </div>`;
         
+        // 5. Kết nối lại dữ liệu điểm danh thời gian thực
         listenLogs(code);
+        
+        // --- PHẦN THÊM MỚI: BIẾN ĐỔI NÚT KÍCH HOẠT THÀNH TẠO MỚI ---
+        const btn = document.getElementById('btn-session-action');
+        if (btn) {
+            btn.innerText = "Tạo sự kiện mới";
+            btn.onclick = resetEventForm; // Gán hàm reset form bạn đã có
+            btn.style.background = "linear-gradient(135deg, #10b981, #3b82f6)"; // Đổi sang màu xanh lá
+        }
+
+        // Đóng modal lịch sử và thông báo
         closeHistory();
-        showToast("Đã khôi phục thành công!", "success");
+        showToast("Đã khôi phục thông tin sự kiện!", "success");
+    } else {
+        showToast("Không tìm thấy dữ liệu sự kiện!", "error");
     }
+}
+
+function resetEventForm() {
+    document.getElementById('a-title').value = "";
+    document.getElementById('admin-fields-list').innerHTML = "";
+    addField("Họ và Tên"); 
+    addField("Lớp / Phòng ban");
+    document.getElementById('qr-container').classList.add('hidden');
+    
+    const btn = document.getElementById('btn-session-action');
+    if (btn) {
+        btn.innerText = "Kích hoạt";
+        btn.onclick = activateSession; // Quay lại hàm kích hoạt ban đầu
+        btn.style.background = ""; // Reset về màu Indigo mặc định
+    }
+    showToast("Giao diện đã được làm sạch!", "info");
 }
 
 async function exportToExcel() {
@@ -1776,7 +1821,7 @@ async function exportToExcel() {
         // 12. XUẤT FILE VÀ TẢI VỀ
         const buffer = await workbook.xlsx.writeBuffer();
         const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-        saveAs(blob, `BaoCao_${createSlug(currentSession.title)}.xlsx`);
+        saveAs(blob, `Danh sách điểm danh ${currentSession.title}.xlsx`);
 
         showToast("Xuất file thành công!", "success");
 
@@ -1856,7 +1901,7 @@ async function exportSpecificSession(code) {
 
         const buffer = await workbook.xlsx.writeBuffer();
         const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-        saveAs(blob, `LichSu_${createSlug(session.title)}.xlsx`);
+        saveAs(blob, `Danh sách điểm danh ${session.title}.xlsx`);
         showToast("Đã xuất file Excel thành công!", "success");
 
     } catch (e) {
@@ -1887,65 +1932,6 @@ function toggleMute() {
         statusText.classList.replace('text-slate-500', 'text-emerald-400');
         indicator.classList.remove('hidden'); // Hiện lại chấm đỏ
         showToast("Đã kích hoạt âm thanh & thông báo điểm danh", "success");
-    }
-}
-
-async function updateLiveSettings() {
-    if (!currentSession || !currentSession.code) {
-        return showToast("Cần 'Kích hoạt' sự kiện trước khi lưu cài đặt!", "error");
-    }
-
-    const isRequired = document.getElementById('a-require-location').checked;
-    const radius = Number(document.getElementById('a-location-radius').value) || 50;
-
-    try {
-        // Nếu bật GPS mà chưa có tọa độ Admin (do lúc nãy kích hoạt mà tắt GPS)
-        // Thì cần lấy tọa độ ngay bây giờ
-        let updateData = {
-            requireLocation: isRequired,
-            locationRadius: radius
-        };
-
-        if (isRequired && !currentSession.adminLocation) {
-            showToast("Đang lấy tọa độ gốc của bạn...", "info");
-            const pos = await new Promise((res, rej) => 
-                navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: true })
-            );
-            updateData.adminLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-            currentSession.adminLocation = updateData.adminLocation;
-        }
-
-        // Cập nhật lên Firebase (Chỉ cập nhật trường, không thay đổi Code/QR)
-        await rdb.ref('dynamic_attendance/sessions/' + currentSession.code).update(updateData);
-
-        // Cập nhật biến local để đồng bộ logic tại chỗ
-        currentSession.requireLocation = isRequired;
-        currentSession.locationRadius = radius;
-
-        showToast("Đã lưu cài đặt GPS vào mã QR hiện tại!", "success");
-        updateGpsHint();
-    } catch (e) {
-        showToast("Lỗi: " + e.message, "error");
-    }
-}
-
-// Cập nhật lại hàm Toggle để nó tự động gọi Lưu luôn nếu muốn (Tùy chọn)
-function notifyLocationToggle() {
-    const toggle = document.getElementById('a-require-location');
-    const radiusSetting = document.getElementById('radius-setting');
-    const hint = document.getElementById('gps-hint');
-    const radius = document.getElementById('a-location-radius').value || 50;
-
-    if (toggle.checked) {
-        radiusSetting.style.opacity = "1";
-        hint.classList.replace('text-slate-500', 'text-emerald-400');
-        hint.innerText = `- Bảo mật: Chỉ điểm danh trong ${radius}m -`;
-        showToast("Đã bật yêu cầu vị trí (Nhớ bấm LƯU)", "info");
-    } else {
-        radiusSetting.style.opacity = "0.5";
-        hint.classList.replace('text-emerald-400', 'text-slate-500');
-        hint.innerText = "- Tự do: Có thể điểm danh từ bất cứ đâu -";
-        showToast("Đã tắt yêu cầu vị trí (Nhớ bấm LƯU)", "info");
     }
 }
 
@@ -1994,79 +1980,6 @@ function playPingSound() {
         console.warn("Browser blocked sound play until first interaction");
     }
 }
-
-function notifyLocationToggle() {
-    const toggle = document.getElementById('a-require-location');
-    const radiusInput = document.getElementById('a-location-radius');
-    const radiusSetting = document.getElementById('radius-setting'); // Thêm dòng này
-    const hint = document.getElementById('gps-hint');
-    
-    const currentRadius = radiusInput.value || 50;
-
-    if (toggle.checked) {
-        radiusSetting.style.opacity = "1";
-        showToast("🔒 ĐÃ BẬT: Hệ thống sẽ bắt đầu quét GPS", "success");
-        hint.classList.replace('text-slate-500', 'text-emerald-400');
-        hint.innerText = `- Chế độ bảo mật cao: Chỉ điểm danh trong bán kính ${currentRadius}m -`;
-    } else {
-        radiusSetting.style.opacity = "0.5";
-        showToast("🔓 ĐÃ TẮT: Cho phép điểm danh từ xa (Tự do)", "info");
-        hint.classList.replace('text-emerald-400', 'text-slate-500');
-        hint.innerText = "- Chế độ mở: Không quét vị trí người dùng -";
-    }
-}
-
-// Hàm cập nhật dòng chữ gợi ý khi admin thay đổi số mét
-function updateGpsHint() {
-    const radius = document.getElementById('a-location-radius').value || 50;
-    const hint = document.getElementById('gps-hint');
-    if (document.getElementById('a-require-location').checked) {
-        hint.innerText = `- Chế độ bảo mật cao: Chỉ điểm danh trong bán kính ${radius}m -`;
-    }
-}
-
-async function deleteSession(code) {
-    // Tận dụng hàm showConfirm có sẵn trong code của bạn
-    showConfirm(`Xác nhận xóa vĩnh viễn toàn bộ dữ liệu của sự kiện này?`, async () => {
-        try {
-            showToast("Đang thực hiện xóa...", "info");
-
-            // 1. Xóa cấu hình sự kiện trong sessions
-            await rdb.ref('dynamic_attendance/sessions/' + code).remove();
-
-            // 2. Xóa danh sách người điểm danh trong logs
-            await rdb.ref('dynamic_attendance/logs/' + code).remove();
-
-            // 3. Nếu đang mở xem sự kiện bị xóa, dọn trắng giao diện luôn
-            if (currentSession && currentSession.code === code) {
-                currentSession = null;
-                document.getElementById('table-body').innerHTML = "";
-                document.getElementById('table-head').innerHTML = "";
-                document.getElementById('report-title').innerText = "Báo cáo";
-                document.getElementById('qr-container').classList.add('hidden');
-            }
-
-            // 4. Reload danh sách lịch sử sau khi xóa thành công
-            showHistory(); 
-            showToast("Đã xóa sạch dữ liệu khỏi server!", "success");
-
-        } catch (e) {
-            showToast("Lỗi: Không thể kết nối server để xóa!", "error");
-        }
-    });
-}
-
-// Bổ sung thêm logic cho hàm xóa lẻ 1 người trong bảng (Nút X đỏ ngoài table)
-async function deleteLog(id) {
-    if (!currentSession || !currentSession.code) return;
-    try {
-        await rdb.ref('dynamic_attendance/logs/' + currentSession.code + '/' + id).remove();
-        showToast("Đã xóa một dòng dữ liệu", "info");
-    } catch (e) {
-        showToast("Lỗi khi xóa dòng!", "error");
-    }
-}
-
 </script>
 <!-- MODAL LỊCH SỬ SỰ KIỆN -->
 <div id="history-modal" class="fixed inset-0 z-[10004] hidden items-center justify-center bg-black/90 backdrop-blur-md p-4">
@@ -2087,6 +2000,23 @@ async function deleteLog(id) {
 </div>
 
 <style>
+    /* Khống chế tiêu đề tối đa 2 dòng, quá dài sẽ hiện dấu ... */
+.truncate-2-lines {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;  
+    overflow: hidden;
+    text-overflow: ellipsis;
+    word-break: break-word;
+}
+
+/* Đảm bảo nút không bị bóp méo trên màn hình lớn */
+@media (min-width: 768px) {
+    .history-item .flex-row {
+        display: flex !important;
+    }
+}
+
 /* Thanh cuộn cho danh sách lịch sử */
 .custom-scrollbar::-webkit-scrollbar { width: 4px; }
 .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(99, 102, 241, 0.3); border-radius: 10px; }
@@ -2101,6 +2031,30 @@ async function deleteLog(id) {
     max-height: 65vh; /* Khóa chiều cao lại để tránh Radar đẩy Layout đi quá xa */
     overflow-y: auto;
     position: relative;
+}
+
+/* QR Zoom Overlay tối ưu */
+#qr-zoom-overlay {
+    background: #000000 !important;
+    z-index: 100001; /* Dưới Toast nhưng trên tất cả Modal */
+}
+
+.qr-lightbox {
+    background: white !important;
+    padding: 30px !important;
+    border-radius: 40px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    max-width: 95vw;
+    max-height: 95vh;
+}
+
+/* Ép ảnh QR không được mờ khi phóng to */
+#qr-zoom-content img {
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
 }
 
 </style>
