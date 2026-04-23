@@ -2368,31 +2368,39 @@ window.onload = () => {
                 <p style="color:#64748b; font-size:12px; margin-top:10px;">Vui lòng giữ nguyên màn hình và bấm 'Cho phép' nếu có yêu cầu.</p>
             </div>`;
 
-        navigator.geolocation.getCurrentPosition(async (pos) => {
-            try {
-                // Gửi tọa độ lên Firebase
-                await rdb.ref('dynamic_attendance/sessions/' + anchor + '/adminLocation').set({
-                    lat: pos.coords.latitude,
-                    lng: pos.coords.longitude,
-                    ts: Date.now() // Thêm timestamp để máy tính nhận diện dữ liệu mới nhất
-                });
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+        try {
+            // Gửi tọa độ lên Firebase
+            await rdb.ref('dynamic_attendance/sessions/' + anchor + '/adminLocation').set({
+                lat: pos.coords.latitude,
+                lng: pos.coords.longitude,
+                ts: Date.now()
+            });
 
-                // Hiện màn hình thành công trên điện thoại
-                const container = document.getElementById('anchor-processing');
+            // Hiện màn hình thành công (Luxury UI)
+            const container = document.getElementById('anchor-processing');
+            if (container) {
                 container.innerHTML = `
                     <div style="animation: zoomIn 0.5s ease forwards;">
-                        <div style="width:80px; height:80px; background:#10b981; border-radius:50%; display:flex; items-center; justify-content:center; margin:0 auto 20px;">
+                        <div style="width:80px; height:80px; background:#10b981; border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 20px; box-shadow: 0 0 30px rgba(16, 185, 129, 0.4);">
                             <svg style="width:40px; color:white;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
                         </div>
-                        <h2 style="color:#10b981; text-transform:uppercase; letter-spacing:2px;">XÁC THỰC HOÀN TẤT</h2>
-                        <p style="color:#64748b; font-size:13px; margin-top:10px;">Tọa độ đã được gửi tới Máy tính.<br>Bạn có thể đóng trình duyệt này.</p>
+                        <h2 style="color:#10b981; text-transform:uppercase; letter-spacing:2px; font-weight:900;">XÁC THỰC HOÀN TẤT</h2>
+                        <p style="color:#64748b; font-size:13px; margin-top:10px;">Vị trí hệ thống đã được thiết lập.<br>Bạn có thể quay lại Máy tính.</p>
                     </div>`;
-            } catch (e) {
+            }
+        } catch (e) {
+            // Nếu lỗi do Firebase Rules
+            if (e.message.includes("PERMISSION_DENIED")) {
+                alert("LỖI HỆ THỐNG: Firebase đang chặn quyền ghi dữ liệu. Bạn hãy cập nhật Rules trong Firebase Console như tôi đã hướng dẫn.");
+            } else {
                 alert("Lỗi kết nối server: " + e.message);
             }
-        }, (err) => {
-            alert("Lỗi GPS: " + getGpsErrorMessage(err));
-        }, { enableHighAccuracy: true, timeout: 10000 });
+        }
+    }, (err) => {
+        // Lỗi do GPS điện thoại (Bấm từ chối hoặc chưa bật định vị trong cài đặt iPhone)
+        alert("LỖI GPS: " + getGpsErrorMessage(err));
+    }, { enableHighAccuracy: true, timeout: 10000 });
         return; // Dừng các logic khác
     }
 
